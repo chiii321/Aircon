@@ -19,10 +19,13 @@
 #define OFF_BUTTON_PIN 26
 
 // Keep false until Wi-Fi credentials are supplied outside version control.
+#ifndef ENABLE_WIFI
 #define ENABLE_WIFI false
+#endif
 
 #if ENABLE_WIFI
 #include <WiFi.h>
+#include <WebServer.h>
 #include <time.h>
 #include "wifi_credentials.h"
 
@@ -62,6 +65,32 @@ void checkButton(Button& button, const char* message, const uint8_t state[],
 
 // Preserve recorded labels/bytes pending hardware verification: the library
 // interprets the ON frame's power bit as off and the OFF frame's bit as on.
+#if ENABLE_WIFI
+WebServer server(80);
+constexpr unsigned long kWifiConnectTimeoutMs = 15000;
+
+const char kControlPage[] = R"rawliteral(
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AUX AC Controller</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 3rem auto; max-width: 28rem; padding: 0 1rem; text-align: center; }
+      button { border: 0; border-radius: .5rem; color: white; cursor: pointer; font-size: 1.25rem; margin: .5rem; padding: 1rem 2rem; }
+      .on { background: #198754; } .off { background: #dc3545; }
+    </style>
+  </head>
+  <body>
+    <h1>AUX AC Controller</h1>
+    <p>Local ESP32 control</p>
+    <form action="/on" method="post"><button class="on" type="submit">Turn ON</button></form>
+    <form action="/off" method="post"><button class="off" type="submit">Turn OFF</button></form>
+  </body>
+</html>
+)rawliteral";
+#endif
 const uint8_t kAuxOnState[] = {
     0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20,
     0x00, 0x00, 0x00, 0x00, 0x05, 0x90,
@@ -116,6 +145,52 @@ void sendAuxState(const uint8_t state[], const char* command) {
   Serial.printf("Sent AUX %s ELECTRA_AC state. Replay is not yet verified.\n", command);
 }
 
+#if ENABLE_WIFI
+void handleWebRoot() {
+  server.send(200, "text/html", kControlPage);
+}
+
+void handleWebOn() {
+  Serial.println("Web ON request received.");
+  sendAuxState(kAuxOnState, "ON");
+  server.sendHeader("Location", "/");
+  server.send(303);
+}
+
+void handleWebOff() {
+  Serial.println("Web OFF request received.");
+  sendAuxState(kAuxOffState, "OFF");
+  server.sendHeader("Location", "/");
+  server.send(303);
+}
+
+void startLocalWebServer() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi");
+
+  const unsigned long startMs = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startMs < kWifiConnectTimeoutMs) {
+    delay(500);
+    Serial.print('.');
+  }
+  Serial.println();
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Wi-Fi connection failed. Local web control is unavailable.");
+    return;
+  }
+
+  configTime(8 * 60 * 60, 0, "pool.ntp.org", "time.nist.gov");
+  server.on("/", HTTP_GET, handleWebRoot);
+  server.on("/on", HTTP_POST, handleWebOn);
+  server.on("/off", HTTP_POST, handleWebOff);
+  server.begin();
+  Serial.print("Local web controller: http://");
+  Serial.println(WiFi.localIP());
+}
+#endif
+
 void checkButton(Button& button, const char* message, const uint8_t state[],
                  const char* command) {
   const bool reading = digitalRead(button.pin);
@@ -145,7 +220,11 @@ void printStatus() {
                 ON_BUTTON_PIN, OFF_BUTTON_PIN);
   Serial.println("AUX ON/OFF captures: configured (replay not yet verified)");
   Serial.println("WARNING: recorded ON/OFF labels disagree with library power bits; verify physically.");
-  Serial.printf("Wi-Fi/NTP: %s\n", ENABLE_WIFI ? "enabled" : "disabled");
+#if ENABLE_WIFI
+  Serial.printf("Wi-Fi: %s\n", WiFi.status() == WL_CONNECTED ? "connected" : "not connected");
+#else
+  Serial.println("Wi-Fi/NTP: disabled");
+#endif
 }
 
 void handleCommand(const String& command) {
@@ -177,8 +256,7 @@ void setup() {
   onButton.lastChangedMs = offButton.lastChangedMs = millis();
 
 #if ENABLE_WIFI
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  configTime(8 * 60 * 60, 0, "pool.ntp.org", "time.nist.gov");
+  startLocalWebServer();
 #endif
 
   Serial.println("Stage 1 ready. Use: status, dht, time, on, off");
@@ -224,6 +302,10 @@ void loop() {
 
   checkButton(onButton, "Physical ON button pressed.", kAuxOnState, "ON");
   checkButton(offButton, "Physical OFF button pressed.", kAuxOffState, "OFF");
+
+#if ENABLE_WIFI
+  server.handleClient();
+#endif
 
   if (millis() - lastDhtReadMs >= kDhtIntervalMs) {
     lastDhtReadMs = millis();

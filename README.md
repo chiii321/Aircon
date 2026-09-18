@@ -122,6 +122,22 @@ python tests/test_stage1.py
 
 This executes the actual sketch with mocked GPIO, clock, Serial, DHT, and IR interfaces. It checks debounce, holding/releasing buttons, boot behavior, timer rollover, Serial line handling, checksum rejection, and DHT/receiver control flow. It cannot verify electrical timing, IR range, sensor accuracy, or AC behavior.
 
+## Local web controller test
+
+The ESP32 can serve a simple local control page with ON and OFF buttons. This is a local-network test only; it is not GitHub Pages or cloud control.
+
+1. Create `firmware/stage1_hardware_test/wifi_credentials.h` locally. Do not commit it.
+2. Add your network values:
+   ```cpp
+   #define WIFI_SSID "your-network-name"
+   #define WIFI_PASSWORD "your-network-password"
+   ```
+3. Enable Wi-Fi locally by changing the default `ENABLE_WIFI` value to `true` in `stage1_hardware_test.ino`.
+4. Upload the sketch and open Serial Monitor at 115200 baud.
+5. On a device connected to the same Wi-Fi network, open the printed `http://` address.
+
+The ESP32 uses its own local IP address. `http://localhost` on a laptop or phone does not reach the ESP32.
+
 ## Progress checklist
 
 - [ ] ESP32 sketch uploaded
