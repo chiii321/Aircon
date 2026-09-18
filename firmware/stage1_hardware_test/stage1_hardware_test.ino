@@ -1,6 +1,6 @@
 /*
   Stage 1 hardware test for ESP32-WROOM-32.
-  Uses confirmed AUX ELECTRA_AC state captures for ON and OFF.
+  Replays recorded AUX ELECTRA_AC captures. Command labels need physical verification.
 */
 
 #include <Arduino.h>
@@ -50,13 +50,18 @@ struct Button {
   uint8_t pin;
   bool lastReading;
   bool stableState;
-  unsigned long lastChangedMs;
+  uint32_t lastChangedMs;
 };
 
 Button onButton = {ON_BUTTON_PIN, HIGH, HIGH, 0};
 Button offButton = {OFF_BUTTON_PIN, HIGH, HIGH, 0};
 
-// Confirmed AUX remote states decoded as ELECTRA_AC. Replay is not yet verified.
+// Avoid Arduino generating this prototype before the Button type is defined.
+void checkButton(Button& button, const char* message, const uint8_t state[],
+                 const char* command);
+
+// Preserve recorded labels/bytes pending hardware verification: the library
+// interprets the ON frame's power bit as off and the OFF frame's bit as on.
 const uint8_t kAuxOnState[] = {
     0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20,
     0x00, 0x00, 0x00, 0x00, 0x05, 0x90,
@@ -100,6 +105,10 @@ void printTime() {
 }
 
 void sendAuxState(const uint8_t state[], const char* command) {
+  if (!IRElectraAc::validChecksum(state, kElectraAcStateLength)) {
+    Serial.println("Invalid AUX capture checksum; transmission skipped.");
+    return;
+  }
   irReceiver.disableIRIn();
   irSender.sendElectraAC(state, kElectraAcStateLength);
   delay(100);
@@ -132,7 +141,10 @@ void printStatus() {
   Serial.println("Stage 1 hardware test");
   Serial.printf("DHT22 GPIO: %d | IR receiver GPIO: %d | IR transmitter GPIO: %d\n",
                 DHT_PIN, IR_RECEIVE_PIN, IR_SEND_PIN);
+  Serial.printf("ON button GPIO: %d | OFF button GPIO: %d (active LOW, 50 ms debounce)\n",
+                ON_BUTTON_PIN, OFF_BUTTON_PIN);
   Serial.println("AUX ON/OFF captures: configured (replay not yet verified)");
+  Serial.println("WARNING: recorded ON/OFF labels disagree with library power bits; verify physically.");
   Serial.printf("Wi-Fi/NTP: %s\n", ENABLE_WIFI ? "enabled" : "disabled");
 }
 
@@ -159,6 +171,10 @@ void setup() {
   irSender.begin();
   pinMode(ON_BUTTON_PIN, INPUT_PULLUP);
   pinMode(OFF_BUTTON_PIN, INPUT_PULLUP);
+  // A held button at boot must be released before it can send a command.
+  onButton.lastReading = onButton.stableState = digitalRead(ON_BUTTON_PIN);
+  offButton.lastReading = offButton.stableState = digitalRead(OFF_BUTTON_PIN);
+  onButton.lastChangedMs = offButton.lastChangedMs = millis();
 
 #if ENABLE_WIFI
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -166,22 +182,45 @@ void setup() {
 #endif
 
   Serial.println("Stage 1 ready. Use: status, dht, time, on, off");
+  printStatus();
+}
+
+void checkSerial() {
+  static String command;
+  static bool overflow = false;
+  // Bound each pass so continuous serial traffic cannot starve button polling.
+  for (uint8_t count = 0; count < 32 && Serial.available(); ++count) {
+    const char character = Serial.read();
+    if (character == '\n' || character == '\r') {
+      if (!overflow) {
+        command.trim();
+        command.toLowerCase();
+        handleCommand(command);
+      } else {
+        Serial.println("Command too long; discarded. Use: status, dht, time, on, off");
+      }
+      command = "";
+      overflow = false;
+    } else if (command.length() < 32 && !overflow) {
+      command += character;
+    } else {
+      overflow = true;
+    }
+  }
 }
 
 void loop() {
   if (irReceiver.decode(&irResults)) {
+    if (irResults.overflow) {
+      Serial.println("IR capture overflow: incomplete data; do not use for replay.");
+    }
     Serial.println("IR capture received:");
     Serial.println(resultToHumanReadableBasic(&irResults));
     Serial.println(resultToSourceCode(&irResults));
     irReceiver.resume();
   }
 
-  if (Serial.available()) {
-    String command = Serial.readStringUntil('\n');
-    command.trim();
-    command.toLowerCase();
-    handleCommand(command);
-  }
+  checkSerial();
 
   checkButton(onButton, "Physical ON button pressed.", kAuxOnState, "ON");
   checkButton(offButton, "Physical OFF button pressed.", kAuxOffState, "OFF");

@@ -15,6 +15,8 @@
 
 ## State data
 
+Audit note: the recorded OFF label is unverified. The library interprets this frame's power bit as ON (byte 9 is `0x20`). Preserve this original capture and confirm the label with a fresh capture and physical replay.
+
 ```cpp
 uint8_t AUX_OFF_STATE[13] = {
   0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20,

@@ -1,5 +1,7 @@
 # CODEX HANDOFF — IoT Air Conditioning Control and Energy Monitoring System
 
+> Historical planning document. Current Stage 1 instructions are in [README.md](README.md) and [docs/wiring.md](docs/wiring.md). The maintained sketch is `firmware/stage1_hardware_test/stage1_hardware_test.ino`; the root sketch is retired. ON/OFF buttons are GPIO 33/26. ELECTRA_AC captures have been recorded, but their labels conflict with the library power bits and physical replay is unverified. Statements below about missing captures and immediate setup actions describe the original handoff, not current status. Website, cloud, scheduling, automation, and energy monitoring remain future work.
+
 ## 1. Project
 
 **Title:** Design and Development of an IoT-Based Air Conditioning Control and Energy Monitoring System

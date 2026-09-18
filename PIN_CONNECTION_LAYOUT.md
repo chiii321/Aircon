@@ -16,6 +16,8 @@ ESP32-WROOM-32, 30-pin development board
 | DHT22 3-pin module | DATA / OUT | GPIO 32 |
 | DHT22 3-pin module | VCC | 3.3V |
 | DHT22 3-pin module | GND | GND |
+| ON push button | Switched terminals | GPIO 33 and GND |
+| OFF push button | Switched terminals | GPIO 26 and GND |
 
 ## Simple Layout
 
@@ -36,9 +38,14 @@ GPIO 32 ------------------------------------> DHT22 DATA
 GPIO 27 <------------------------------------ IR Receiver SIGNAL
 
 GPIO 25 ------------------------------------> IR Transmitter DAT
+
+GPIO 33 -------- ON button (normally open) --- GND
+GPIO 26 -------- OFF button (normally open) -- GND
 ```
 
 ## Notes
+
+- Buttons use internal pull-ups and are active LOW. See [docs/wiring.md](docs/wiring.md) for switch-terminal and USB power-bank details.
 
 - Start the DHT22 and IR receiver at 3.3V.
 - Start the pictured IR transmitter at 3.3V for safe prototype testing.
