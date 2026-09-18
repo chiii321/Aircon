@@ -1,0 +1,32 @@
+# Arduino IDE and build artifacts
+*.elf
+*.hex
+*.bin
+*.map
+*.eep
+*.lss
+*.sym
+build/
+
+# PlatformIO (possible future use)
+.pio/
+.piolibdeps/
+
+# Editors
+.vscode/
+.idea/
+*.code-workspace
+
+# Operating-system files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+secrets.h
+credentials.h
+wifi_credentials.h
+service-account*.json
