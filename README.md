@@ -48,7 +48,7 @@ Design rule: the ESP32 will eventually execute schedules locally. A browser must
 
 ## Current development stage
 
-**Stage 1 — hardware test.** No website, Supabase backend, scheduling, temperature automation, or energy monitoring is implemented yet.
+**Stage 1 — hardware test**, with optional local ESP32 web control. Cloud website/Supabase, scheduling, temperature automation, and energy monitoring remain future work.
 
 ## Repository structure
 
@@ -91,9 +91,9 @@ The sketch defaults to Wi-Fi and NTP disabled. If you enable them later, define 
 5. Open Serial Monitor at **115200 baud**, with **Newline**, **Carriage return**, or **Both NL & CR** enabled. Commands are processed only when a line ends.
 6. Run `status`, then `dht` to confirm sensor readings.
 7. Aim the AUX remote at the IR receiver and press its ON and OFF commands separately. Copy each printed source/raw capture into a documented capture record.
-8. The recorded 13-byte ELECTRA_AC states are already in `kAuxOnState` and `kAuxOffState`. Use `on` and `off` to test replay and record the actual response. **Their recorded labels disagree with the library's power-bit interpretation: the ON frame decodes as power off and the OFF frame as power on.** Preserve the original records; confirm with fresh captures and the AC before correcting labels or claiming success.
+8. The recorded 13-byte ELECTRA_AC states are already configured. Firmware now routes ON/OFF by the library's power bit, correcting the original reversed labels while preserving the historical capture records. Use `on` and `off` to test actual AC response. If neither works, follow [IR troubleshooting](docs/ir-troubleshooting.md), including the `capture` / `replay` diagnostic.
 
-Available serial commands: `status`, `dht`, `time`, `on`, and `off`.
+Available serial commands: `status`, `dht`, `time`, `on`, `off`, `capture`, and `replay`. `capture` records the next non-overflowed, non-repeat remote frame in RAM and pauses DHT/local sending for up to 60 seconds. `replay` transmits its raw timings at 38 kHz. Neither command changes the permanent ON/OFF states.
 
 Only `firmware/stage1_hardware_test/stage1_hardware_test.ino` is maintained. The root `esp32_stage1_hardware_test.ino` is a retired marker that deliberately stops compilation and points to the maintained sketch.
 
@@ -138,6 +138,12 @@ The ESP32 can serve a simple local control page with ON and OFF buttons. This is
 
 The ESP32 uses its own local IP address. `http://localhost` on a laptop or phone does not reach the ESP32.
 
+Wi-Fi connects in the background and prints its address when connected, including after a reconnect. Physical controls remain available while connecting. This local test page has no authentication; use a trusted test network without port forwarding.
+
+## Working together through GitHub
+
+Pull with `git pull --ff-only` before editing/uploading. Use small branches/PRs and wait for **Firmware checks**, which compiles both standalone and Wi-Fi modes and runs host regression tests. Record the tested commit and `status` build timestamp with hardware results using [the handoff template](docs/ir-troubleshooting.md). A GitHub push does not flash the ESP32, and passing CI does not establish physical AC replay.
+
 ## Progress checklist
 
 - [ ] ESP32 sketch uploaded
@@ -162,6 +168,6 @@ The ESP32 uses its own local IP address. `http://localhost` on a laptop or phone
 ## Unresolved questions
 
 - Which exact DHT22 module variant is used, and does it require an external pull-up resistor on DATA?
-- Do fresh captures and physical replay confirm or reverse the recorded ON/OFF labels?
+- Do fresh captures and physical replay confirm the corrected ON/OFF mapping and library timings?
 - Does the IR transmitter circuit provide sufficient range and current at 3.3V, or will a transistor-driven supply be needed later?
 - What energy-meter hardware and electrical isolation approach will be selected for the future energy-monitoring phase?

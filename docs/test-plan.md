@@ -2,6 +2,8 @@
 
 Use the maintained sketch and wiring in the README. No physical tests below have been performed by this audit.
 
+For the reported no-response issue, first follow [IR troubleshooting](ir-troubleshooting.md). Firmware now corrects the reversed mapping using the library power bit; physical validation remains pending.
+
 1. Upload to the ESP32-WROOM-32 using the documented board/library versions. At 115200 baud, run `status` and check GPIOs 25/27/32/33/26. Boot must not transmit a command.
 2. Verify plausible DHT22 readings every two seconds and with `dht`. Disconnect DATA temporarily: a read failure should be reported and buttons/IR capture should continue. Reconnect and confirm recovery.
 3. Capture fresh AUX ON and OFF signals, recording exact AC/remote models, visible settings, decoded state, and raw timings. Resolve the recorded labels' reversed power bits before declaring either command correct. Reject incomplete/overflowed captures.

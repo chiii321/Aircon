@@ -1,6 +1,6 @@
 /*
   Stage 1 hardware test for ESP32-WROOM-32.
-  Replays recorded AUX ELECTRA_AC captures. Command labels need physical verification.
+  AUX ELECTRA_AC control and raw replay diagnostics. Physical replay unverified.
 */
 
 #include <Arduino.h>
@@ -17,6 +17,16 @@
 #define IR_SEND_PIN 25
 #define ON_BUTTON_PIN 33
 #define OFF_BUTTON_PIN 26
+
+#ifndef IR_SEND_INVERTED
+#define IR_SEND_INVERTED false  // Set true only for a confirmed active-LOW driver.
+#endif
+constexpr uint16_t kRawReplayKhz = 38;  // Receiver cannot measure carrier frequency.
+const char kCommands[] = "status, dht, time, on, off, capture, replay";
+bool capturePending = false;
+uint32_t captureStartedMs = 0;
+uint16_t* capturedRaw = nullptr;
+uint16_t capturedRawLength = 0;
 
 // Keep false until Wi-Fi credentials are supplied outside version control.
 #ifndef ENABLE_WIFI
@@ -44,7 +54,7 @@ constexpr unsigned long kButtonDebounceMs = 50;
 
 DHT dht(DHT_PIN, DHT_TYPE);
 IRrecv irReceiver(IR_RECEIVE_PIN, kCaptureBufferSize, kCaptureTimeoutMs, true);
-IRsend irSender(IR_SEND_PIN);
+IRsend irSender(IR_SEND_PIN, IR_SEND_INVERTED);
 decode_results irResults;
 unsigned long lastDhtReadMs = 0;
 constexpr unsigned long kDhtIntervalMs = 2000;
@@ -63,11 +73,9 @@ Button offButton = {OFF_BUTTON_PIN, HIGH, HIGH, 0};
 void checkButton(Button& button, const char* message, const uint8_t state[],
                  const char* command);
 
-// Preserve recorded labels/bytes pending hardware verification: the library
-// interprets the ON frame's power bit as off and the OFF frame's bit as on.
 #if ENABLE_WIFI
 WebServer server(80);
-constexpr unsigned long kWifiConnectTimeoutMs = 15000;
+bool wifiWasConnected = false;
 
 const char kControlPage[] = R"rawliteral(
 <!doctype html>
@@ -91,14 +99,16 @@ const char kControlPage[] = R"rawliteral(
 </html>
 )rawliteral";
 #endif
+// Original capture documents retain their historical labels. Route these existing
+// frames by ELECTRA_AC power bit (byte 9 bit 5); no new IR bytes are invented.
 const uint8_t kAuxOnState[] = {
     0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20,
-    0x00, 0x00, 0x00, 0x00, 0x05, 0x90,
+    0x00, 0x00, 0x20, 0x00, 0x05, 0xB0,
 };
 
 const uint8_t kAuxOffState[] = {
     0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20,
-    0x00, 0x00, 0x20, 0x00, 0x05, 0xB0,
+    0x00, 0x00, 0x00, 0x00, 0x05, 0x90,
 };
 
 static_assert(sizeof(kAuxOnState) == kElectraAcStateLength,
@@ -107,6 +117,10 @@ static_assert(sizeof(kAuxOffState) == kElectraAcStateLength,
               "AUX OFF state must be an ELECTRA_AC state frame.");
 
 void printDht() {
+  if (capturePending) {
+    Serial.println("DHT paused during capture to avoid interrupting IR timings.");
+    return;
+  }
   const float humidity = dht.readHumidity();
   const float temperatureC = dht.readTemperature();
 
@@ -121,7 +135,7 @@ void printDht() {
 void printTime() {
 #if ENABLE_WIFI
   struct tm timeInfo;
-  if (getLocalTime(&timeInfo)) {
+  if (getLocalTime(&timeInfo, 0)) {
     Serial.printf("Time (UTC+8): %04d-%02d-%02d %02d:%02d:%02d\n",
                   timeInfo.tm_year + 1900, timeInfo.tm_mon + 1, timeInfo.tm_mday,
                   timeInfo.tm_hour, timeInfo.tm_min, timeInfo.tm_sec);
@@ -134,6 +148,10 @@ void printTime() {
 }
 
 void sendAuxState(const uint8_t state[], const char* command) {
+  if (capturePending) {
+    Serial.println("Capture is armed; wait for the remote or the 60-second timeout before sending.");
+    return;
+  }
   if (!IRElectraAc::validChecksum(state, kElectraAcStateLength)) {
     Serial.println("Invalid AUX capture checksum; transmission skipped.");
     return;
@@ -143,6 +161,29 @@ void sendAuxState(const uint8_t state[], const char* command) {
   delay(100);
   irReceiver.enableIRIn();
   Serial.printf("Sent AUX %s ELECTRA_AC state. Replay is not yet verified.\n", command);
+}
+
+void captureNext() {
+  delete[] capturedRaw;
+  capturedRaw = nullptr;
+  capturedRawLength = 0;
+  irReceiver.resume();
+  capturePending = true;
+  captureStartedMs = millis();
+  Serial.println("Capture armed for 60 seconds. Press the original remote once. DHT reads paused.");
+}
+
+void replayCaptured() {
+  if (capturePending || capturedRaw == nullptr || capturedRawLength == 0) {
+    Serial.println("No completed raw capture. Use capture, then press the original remote.");
+    return;
+  }
+  irReceiver.disableIRIn();
+  irSender.sendRaw(capturedRaw, capturedRawLength, kRawReplayKhz);
+  delay(100);
+  irReceiver.enableIRIn();
+  Serial.printf("Replayed %u raw timings at %u kHz. Check the actual AC response.\n",
+                capturedRawLength, kRawReplayKhz);
 }
 
 #if ENABLE_WIFI
@@ -166,28 +207,15 @@ void handleWebOff() {
 
 void startLocalWebServer() {
   WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("Connecting to Wi-Fi");
-
-  const unsigned long startMs = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - startMs < kWifiConnectTimeoutMs) {
-    delay(500);
-    Serial.print('.');
-  }
-  Serial.println();
-
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("Wi-Fi connection failed. Local web control is unavailable.");
-    return;
-  }
+  Serial.println("Connecting to Wi-Fi in background; physical/Serial controls remain available.");
 
   configTime(8 * 60 * 60, 0, "pool.ntp.org", "time.nist.gov");
   server.on("/", HTTP_GET, handleWebRoot);
   server.on("/on", HTTP_POST, handleWebOn);
   server.on("/off", HTTP_POST, handleWebOff);
   server.begin();
-  Serial.print("Local web controller: http://");
-  Serial.println(WiFi.localIP());
 }
 #endif
 
@@ -219,7 +247,10 @@ void printStatus() {
   Serial.printf("ON button GPIO: %d | OFF button GPIO: %d (active LOW, 50 ms debounce)\n",
                 ON_BUTTON_PIN, OFF_BUTTON_PIN);
   Serial.println("AUX ON/OFF captures: configured (replay not yet verified)");
-  Serial.println("WARNING: recorded ON/OFF labels disagree with library power bits; verify physically.");
+  Serial.println("ON/OFF mapped by ELECTRA_AC power bit; original records retained. AC response unknown.");
+  Serial.printf("IR TX inverted: %s | raw replay carrier: %u kHz | captured timings: %u\n",
+                IR_SEND_INVERTED ? "yes" : "no", kRawReplayKhz, capturedRawLength);
+  Serial.printf("Build: %s %s\n", __DATE__, __TIME__);
 #if ENABLE_WIFI
   Serial.printf("Wi-Fi: %s\n", WiFi.status() == WL_CONNECTED ? "connected" : "not connected");
 #else
@@ -238,8 +269,12 @@ void handleCommand(const String& command) {
     sendAuxState(kAuxOnState, "ON");
   } else if (command == "off") {
     sendAuxState(kAuxOffState, "OFF");
+  } else if (command == "capture") {
+    captureNext();
+  } else if (command == "replay") {
+    replayCaptured();
   } else if (command.length() > 0) {
-    Serial.println("Unknown command. Use: status, dht, time, on, off");
+    Serial.printf("Unknown command. Use: %s\n", kCommands);
   }
 }
 
@@ -259,7 +294,7 @@ void setup() {
   startLocalWebServer();
 #endif
 
-  Serial.println("Stage 1 ready. Use: status, dht, time, on, off");
+  Serial.printf("Stage 1 ready. Use: %s\n", kCommands);
   printStatus();
 }
 
@@ -275,7 +310,7 @@ void checkSerial() {
         command.toLowerCase();
         handleCommand(command);
       } else {
-        Serial.println("Command too long; discarded. Use: status, dht, time, on, off");
+        Serial.printf("Command too long; discarded. Use: %s\n", kCommands);
       }
       command = "";
       overflow = false;
@@ -288,9 +323,25 @@ void checkSerial() {
 }
 
 void loop() {
+  if (capturePending && uint32_t(millis() - captureStartedMs) >= 60000) {
+    capturePending = false;
+    Serial.println("Capture timed out. DHT reads resumed; use capture to try again.");
+  }
   if (irReceiver.decode(&irResults)) {
     if (irResults.overflow) {
       Serial.println("IR capture overflow: incomplete data; do not use for replay.");
+    } else if (capturePending && !irResults.repeat && irResults.rawlen > 1) {
+      capturedRawLength = getCorrectedRawLength(&irResults);
+      capturedRaw = resultToRawArray(&irResults);
+      if (capturedRaw != nullptr && capturedRawLength > 0) {
+        capturePending = false;
+        Serial.println("Raw capture saved in RAM. Aim transmitter at AC, then type replay. Lost at reboot.");
+      } else {
+        delete[] capturedRaw;
+        capturedRaw = nullptr;
+        capturedRawLength = 0;
+        Serial.println("Raw capture allocation failed; try again.");
+      }
     }
     Serial.println("IR capture received:");
     Serial.println(resultToHumanReadableBasic(&irResults));
@@ -304,10 +355,16 @@ void loop() {
   checkButton(offButton, "Physical OFF button pressed.", kAuxOffState, "OFF");
 
 #if ENABLE_WIFI
-  server.handleClient();
+  const bool connected = WiFi.status() == WL_CONNECTED;
+  if (connected && !wifiWasConnected) {
+    Serial.print("Local web controller: http://");
+    Serial.println(WiFi.localIP());
+  }
+  wifiWasConnected = connected;
+  if (connected) server.handleClient();
 #endif
 
-  if (millis() - lastDhtReadMs >= kDhtIntervalMs) {
+  if (!capturePending && millis() - lastDhtReadMs >= kDhtIntervalMs) {
     lastDhtReadMs = millis();
     printDht();
   }
