@@ -24,6 +24,10 @@ Capstone project workspace for the design and development of an IoT-based air-co
 | DHT22 | DATA | GPIO 32 |
 | DHT22 | VCC | 3.3V |
 | DHT22 | GND | GND |
+| ON button | One terminal | GPIO 33 |
+| ON button | Other terminal | GND |
+| OFF button | One terminal | GPIO 26 |
+| OFF button | Other terminal | GND |
 
 See [docs/wiring.md](docs/wiring.md) for the wiring reference.
 

@@ -1,6 +1,6 @@
 /*
   Stage 1 hardware test for ESP32-WROOM-32.
-  Captures must be genuine AUX remote signals. No AUX codes are included here.
+  Uses confirmed AUX ELECTRA_AC state captures for ON and OFF.
 */
 
 #include <Arduino.h>
@@ -9,11 +9,14 @@
 #include <IRrecv.h>
 #include <IRsend.h>
 #include <IRutils.h>
+#include <ir_Electra.h>
 
 #define DHT_PIN 32
 #define DHT_TYPE DHT22
 #define IR_RECEIVE_PIN 27
 #define IR_SEND_PIN 25
+#define ON_BUTTON_PIN 33
+#define OFF_BUTTON_PIN 26
 
 // Keep false until Wi-Fi credentials are supplied outside version control.
 #define ENABLE_WIFI false
@@ -34,7 +37,7 @@
 
 constexpr uint16_t kCaptureBufferSize = 1024;
 constexpr uint8_t kCaptureTimeoutMs = 50;
-constexpr uint16_t kIrFrequencyKhz = 38;
+constexpr unsigned long kButtonDebounceMs = 50;
 
 DHT dht(DHT_PIN, DHT_TYPE);
 IRrecv irReceiver(IR_RECEIVE_PIN, kCaptureBufferSize, kCaptureTimeoutMs, true);
@@ -43,11 +46,31 @@ decode_results irResults;
 unsigned long lastDhtReadMs = 0;
 constexpr unsigned long kDhtIntervalMs = 2000;
 
-// Replace nullptr and length 0 only with real, documented AUX captures.
-const uint16_t* kAuxOnRaw = nullptr;
-const uint16_t kAuxOnRawLength = 0;
-const uint16_t* kAuxOffRaw = nullptr;
-const uint16_t kAuxOffRawLength = 0;
+struct Button {
+  uint8_t pin;
+  bool lastReading;
+  bool stableState;
+  unsigned long lastChangedMs;
+};
+
+Button onButton = {ON_BUTTON_PIN, HIGH, HIGH, 0};
+Button offButton = {OFF_BUTTON_PIN, HIGH, HIGH, 0};
+
+// Confirmed AUX remote states decoded as ELECTRA_AC. Replay is not yet verified.
+const uint8_t kAuxOnState[] = {
+    0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20,
+    0x00, 0x00, 0x00, 0x00, 0x05, 0x90,
+};
+
+const uint8_t kAuxOffState[] = {
+    0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20,
+    0x00, 0x00, 0x20, 0x00, 0x05, 0xB0,
+};
+
+static_assert(sizeof(kAuxOnState) == kElectraAcStateLength,
+              "AUX ON state must be an ELECTRA_AC state frame.");
+static_assert(sizeof(kAuxOffState) == kElectraAcStateLength,
+              "AUX OFF state must be an ELECTRA_AC state frame.");
 
 void printDht() {
   const float humidity = dht.readHumidity();
@@ -76,26 +99,40 @@ void printTime() {
 #endif
 }
 
-void sendCapture(const uint16_t* rawData, uint16_t length, const char* command) {
-  if (rawData == nullptr || length == 0) {
-    Serial.printf("No verified AUX %s capture has been added. Capture the real remote signal first.\n", command);
-    return;
-  }
-
+void sendAuxState(const uint8_t state[], const char* command) {
   irReceiver.disableIRIn();
-  irSender.sendRaw(rawData, length, kIrFrequencyKhz);
+  irSender.sendElectraAC(state, kElectraAcStateLength);
   delay(100);
   irReceiver.enableIRIn();
-  Serial.printf("Replayed AUX %s capture. Verify the AC response physically.\n", command);
+  Serial.printf("Sent AUX %s ELECTRA_AC state. Replay is not yet verified.\n", command);
+}
+
+void checkButton(Button& button, const char* message, const uint8_t state[],
+                 const char* command) {
+  const bool reading = digitalRead(button.pin);
+
+  if (reading != button.lastReading) {
+    button.lastChangedMs = millis();
+  }
+
+  if (millis() - button.lastChangedMs >= kButtonDebounceMs &&
+      reading != button.stableState) {
+    button.stableState = reading;
+
+    if (button.stableState == LOW) {
+      Serial.println(message);
+      sendAuxState(state, command);
+    }
+  }
+
+  button.lastReading = reading;
 }
 
 void printStatus() {
   Serial.println("Stage 1 hardware test");
   Serial.printf("DHT22 GPIO: %d | IR receiver GPIO: %d | IR transmitter GPIO: %d\n",
                 DHT_PIN, IR_RECEIVE_PIN, IR_SEND_PIN);
-  Serial.printf("AUX ON capture: %s | AUX OFF capture: %s\n",
-                kAuxOnRawLength ? "configured" : "not configured",
-                kAuxOffRawLength ? "configured" : "not configured");
+  Serial.println("AUX ON/OFF captures: configured (replay not yet verified)");
   Serial.printf("Wi-Fi/NTP: %s\n", ENABLE_WIFI ? "enabled" : "disabled");
 }
 
@@ -107,9 +144,9 @@ void handleCommand(const String& command) {
   } else if (command == "time") {
     printTime();
   } else if (command == "on") {
-    sendCapture(kAuxOnRaw, kAuxOnRawLength, "ON");
+    sendAuxState(kAuxOnState, "ON");
   } else if (command == "off") {
-    sendCapture(kAuxOffRaw, kAuxOffRawLength, "OFF");
+    sendAuxState(kAuxOffState, "OFF");
   } else if (command.length() > 0) {
     Serial.println("Unknown command. Use: status, dht, time, on, off");
   }
@@ -120,6 +157,8 @@ void setup() {
   dht.begin();
   irReceiver.enableIRIn();
   irSender.begin();
+  pinMode(ON_BUTTON_PIN, INPUT_PULLUP);
+  pinMode(OFF_BUTTON_PIN, INPUT_PULLUP);
 
 #if ENABLE_WIFI
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -143,6 +182,9 @@ void loop() {
     command.toLowerCase();
     handleCommand(command);
   }
+
+  checkButton(onButton, "Physical ON button pressed.", kAuxOnState, "ON");
+  checkButton(offButton, "Physical OFF button pressed.", kAuxOffState, "OFF");
 
   if (millis() - lastDhtReadMs >= kDhtIntervalMs) {
     lastDhtReadMs = millis();

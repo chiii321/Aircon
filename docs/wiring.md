@@ -13,9 +13,14 @@ Use the listed connections for the current ESP32-WROOM-32 30-pin board hardware 
 | DHT22 | DATA | ESP32 GPIO 32 |
 | DHT22 | VCC | ESP32 3.3V |
 | DHT22 | GND | ESP32 GND |
+| ON push button | One terminal | ESP32 GPIO 33 |
+| ON push button | Other terminal | ESP32 GND |
+| OFF push button | One terminal | ESP32 GPIO 26 |
+| OFF push button | Other terminal | ESP32 GND |
 
 ## Notes
 
 - The current test AC is an AUX DC inverter. Its original remote is needed to capture genuine commands.
 - Start the IR transmitter at 3.3V as specified. Do not assume its range is adequate until replay is physically verified.
 - DHT22 modules vary. This wiring reference does not assume an onboard or external DATA pull-up resistor; confirm the requirement for the specific module if readings fail.
+- The buttons use the ESP32's internal pull-up resistors. Each button is active LOW: connect it only between its GPIO and GND; do not connect it to 3.3V.
