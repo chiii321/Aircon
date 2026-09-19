@@ -18,7 +18,7 @@ Record all of the following:
 
 The Stage 1 sketch prints decoded information and Arduino source/raw data to Serial Monitor. Preserve the output exactly. The existing ON/OFF records contain 13-byte ELECTRA_AC state data, already copied into `kAuxOnState` and `kAuxOffState`; there are no raw placeholders in the maintained sketch. Do not reuse captures marked as overflowing/incomplete.
 
-Both recorded checksums are valid, but the library interprets byte 9 bit 5 as power: it is clear in the ON-labelled capture and set in the OFF-labelled capture. Firmware now maps these existing frames by that power bit (the historical OFF-labelled record supplies ON and vice versa). Original capture documents/bytes remain unchanged. Physical behavior is still unverified. See [the library's protocol definition](https://github.com/crankyoldgit/IRremoteESP8266/blob/v2.8.6/src/ir_Electra.h) and [power/checksum implementation](https://github.com/crankyoldgit/IRremoteESP8266/blob/v2.8.6/src/ir_Electra.cpp).
+Both recorded checksums are valid. ON/OFF labels are confirmed by the user from actual AUX behavior during capture. Firmware uses these exact records under their original labels; inferred protocol bits must not override that physical evidence. Replay with the temporary harvested-LED transistor circuit remains unverified. See [the library's protocol definition](https://github.com/crankyoldgit/IRremoteESP8266/blob/v2.8.6/src/ir_Electra.h) and [power/checksum implementation](https://github.com/crankyoldgit/IRremoteESP8266/blob/v2.8.6/src/ir_Electra.cpp).
 
 For fresh diagnostics use [capture/replay and the hardware handoff](../ir-troubleshooting.md). Save complete raw output, settings, tested commit, and observed AC response.
 

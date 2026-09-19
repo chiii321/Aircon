@@ -129,9 +129,13 @@ void serial(const std::string& line) {
   while (Serial.available()) checkSerial();
 }
 int main() {
-  // ELECTRA_AC byte 9 bit 5 is power; catches the original swapped routing.
-  assert((kAuxOnState[9] & 0x20) != 0);
-  assert((kAuxOffState[9] & 0x20) == 0);
+  // Physical capture labels take precedence over inferred protocol bits.
+  const std::vector<uint8_t> confirmedOn = {0xC3,0x88,0xE0,0,0x40,0,0x20,0,0,0,0,5,0x90};
+  const std::vector<uint8_t> confirmedOff = {0xC3,0x88,0xE0,0,0x40,0,0x20,0,0,0x20,0,5,0xB0};
+  assert(std::vector<uint8_t>(kAuxOnState, kAuxOnState + 13) == confirmedOn);
+  assert(std::vector<uint8_t>(kAuxOffState, kAuxOffState + 13) == confirmedOff);
+  assert(IR_SEND_PIN == 25 && IR_RECEIVE_PIN == 27 && DHT_PIN == 32);
+  assert(ON_BUTTON_PIN == 33 && OFF_BUTTON_PIN == 26 && !IR_SEND_INVERTED);
   for (bool& pin : pins) pin = HIGH;
   pins[ON_BUTTON_PIN] = LOW;
   setup();
@@ -144,6 +148,7 @@ int main() {
     sample(*b, LOW, 0); sample(*b, HIGH, 10); sample(*b, LOW, 10);
     sample(*b, LOW, 49); assert(irSender.sent.size() == before);
     sample(*b, LOW, 1); assert(irSender.sent.size() == before + 1);
+    assert(irSender.sent.back() == (b == &onButton ? confirmedOn : confirmedOff));
     sample(*b, LOW, 5000); assert(irSender.sent.size() == before + 1);
     sample(*b, HIGH, 0); sample(*b, LOW, 10); // release bounce cannot re-arm
     sample(*b, LOW, 50); assert(irSender.sent.size() == before + 1);
@@ -159,6 +164,7 @@ int main() {
   auto before = irSender.sent.size();
   serial(" ON \r\noff\non\roff\r\n");
   assert(irSender.sent.size() == before + 4);
+  assert(irSender.sent[before] == confirmedOn && irSender.sent[before + 1] == confirmedOff);
   assert(irSender.sent.back() == std::vector<uint8_t>(kAuxOffState, kAuxOffState + 13));
   before = irSender.sent.size(); serial("o");
   sample(offButton, LOW, 0); sample(offButton, LOW, 50);
@@ -194,8 +200,8 @@ int main() {
 #if ENABLE_WIFI
   assert(server.started && server.routes.size() == 3);
   WiFi.connection = WL_CONNECTED; loop(); assert(server.polls == 1);
-  server.routes["/on"](); assert((irSender.sent.back()[9] & 0x20) != 0);
-  server.routes["/off"](); assert((irSender.sent.back()[9] & 0x20) == 0);
+  server.routes["/on"](); assert(irSender.sent.back() == confirmedOn);
+  server.routes["/off"](); assert(irSender.sent.back() == confirmedOff);
   WiFi.connection = 0; loop(); assert(!wifiWasConnected);
   WiFi.connection = WL_CONNECTED; loop(); assert(wifiWasConnected);
 #endif

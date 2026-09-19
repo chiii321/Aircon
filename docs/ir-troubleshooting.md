@@ -12,18 +12,21 @@ record `git rev-parse --short HEAD`. Open only
 `status` output (including build date/time). Pulling GitHub changes does not update
 the firmware already on the ESP32. Keep local credentials out of Git.
 
-The maintained firmware now maps ON to byte 9 `0x20` and checksum `0xB0`, and OFF
-to byte 9 `0x00` and checksum `0x90`, per the installed ELECTRA_AC library.
-The original capture records remain unchanged as evidence. This corrects reversed
-command routing but does not explain a total absence of AC response on its own.
+The firmware preserves the physically confirmed captures: ON is
+`C3 88 E0 00 40 00 20 00 00 00 00 05 90`; OFF is
+`C3 88 E0 00 40 00 20 00 00 20 00 05 B0`.
+An inferred protocol power bit must not override those observed labels.
+Replay with the new temporary transmitter still requires physical verification.
 
 ## Test one link at a time
 
 1. Confirm the original remote operates the AC. Record exact AC and remote model
-   numbers and the transmitter's printed labels/circuit. The KY-005/KY-022-style
-   identification is tentative; pin order and driver circuitry are not confirmed.
+   numbers. The current transmitter is a temporary harvested IR LED from the
+   previous transmitter module, driven through a 2N2222 as shown in [wiring.md](wiring.md).
+   The old module board is no longer used. LED wavelength, current rating, and
+   polarity are unconfirmed; a proper bare 5mm 940 nm LED is still planned.
 2. At 115200 baud with a line ending enabled, try `on` and `off` separately while
-   aiming at the AC from close range. Observe the AC beep/display/power response;
+   aiming at the AC receiver from 10–20 cm initially. Observe the AC beep/display/power response;
    compressor startup can be delayed. Respect the AC manual's restart interval.
 3. If neither works, type `capture`. DHT reads and local sends pause for at most
    60 seconds. Aim the original remote at GPIO 27's receiver and press once.
@@ -36,8 +39,9 @@ command routing but does not explain a total absence of AC response on its own.
 5. If raw replay works but `on`/`off` does not, commit the fresh state AND raw
    timings plus remote settings under `docs/ir-captures/`. The saved protocol,
    frame contents, or library timing is then the next item to investigate.
-6. If raw replay also fails, check transmitter pin order, common ground, LED
-   orientation, and the actual module's supply/driver requirements. Compare the
+6. If raw replay also fails, verify the harvested LED polarity, exact 2N2222
+   pinout, common ground, 1kΩ base resistor, 100Ω LED resistor, and board 5V/VIN rail.
+   The test resistor value does not establish a safe current for an unidentified LED. Compare the
    original remote and transmitter with the same phone camera: visible flashes
    are only a rough emission check; an IR-filtered camera can show neither.
    A second receiver/ESP32 or oscilloscope gives better evidence. The sender's

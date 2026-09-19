@@ -99,16 +99,16 @@ const char kControlPage[] = R"rawliteral(
 </html>
 )rawliteral";
 #endif
-// Original capture documents retain their historical labels. Route these existing
-// frames by ELECTRA_AC power bit (byte 9 bit 5); no new IR bytes are invented.
+// Labels confirmed from physical AUX behavior. Preserve these exact captures;
+// do not override them using an inferred protocol power bit.
 const uint8_t kAuxOnState[] = {
     0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20,
-    0x00, 0x00, 0x20, 0x00, 0x05, 0xB0,
+    0x00, 0x00, 0x00, 0x00, 0x05, 0x90,
 };
 
 const uint8_t kAuxOffState[] = {
     0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20,
-    0x00, 0x00, 0x00, 0x00, 0x05, 0x90,
+    0x00, 0x00, 0x20, 0x00, 0x05, 0xB0,
 };
 
 static_assert(sizeof(kAuxOnState) == kElectraAcStateLength,
@@ -247,7 +247,7 @@ void printStatus() {
   Serial.printf("ON button GPIO: %d | OFF button GPIO: %d (active LOW, 50 ms debounce)\n",
                 ON_BUTTON_PIN, OFF_BUTTON_PIN);
   Serial.println("AUX ON/OFF captures: configured (replay not yet verified)");
-  Serial.println("ON/OFF mapped by ELECTRA_AC power bit; original records retained. AC response unknown.");
+  Serial.println("ON/OFF labels confirmed from physical capture; replay with this transmitter remains unverified.");
   Serial.printf("IR TX inverted: %s | raw replay carrier: %u kHz | captured timings: %u\n",
                 IR_SEND_INVERTED ? "yes" : "no", kRawReplayKhz, capturedRawLength);
   Serial.printf("Build: %s %s\n", __DATE__, __TIME__);

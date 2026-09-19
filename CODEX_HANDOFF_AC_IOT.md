@@ -1,6 +1,6 @@
 # CODEX HANDOFF — IoT Air Conditioning Control and Energy Monitoring System
 
-> Historical planning document. Current Stage 1 instructions are in [README.md](README.md) and [docs/wiring.md](docs/wiring.md). The maintained sketch is `firmware/stage1_hardware_test/stage1_hardware_test.ino`; the root sketch is retired. ON/OFF buttons are GPIO 33/26. ELECTRA_AC captures have been recorded, but their labels conflict with the library power bits and physical replay is unverified. Statements below about missing captures and immediate setup actions describe the original handoff, not current status. Website, cloud, scheduling, automation, and energy monitoring remain future work.
+> Historical planning document. Current Stage 1 instructions are in [README.md](README.md) and [docs/wiring.md](docs/wiring.md). The maintained sketch is `firmware/stage1_hardware_test/stage1_hardware_test.ino`; the root sketch is retired. ON/OFF buttons are GPIO 33/26. ELECTRA_AC capture labels are now confirmed from actual AUX behavior and must not be reversed from inferred protocol bits. The old 3-pin transmitter described below has been replaced by a temporary harvested IR LED driven by a 2N2222 (see current wiring docs); its wavelength/current rating/polarity are unconfirmed. A proper 5mm 940 nm LED is planned. Replay on the new circuit remains unverified. Statements below about missing captures and immediate setup actions describe the original handoff, not current status. Website, cloud, scheduling, automation, and energy monitoring remain future work.
 
 ## 1. Project
 

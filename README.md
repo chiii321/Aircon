@@ -7,7 +7,8 @@ Capstone project workspace for the design and development of an IoT-based air-co
 - ESP32-WROOM-32, 30-pin board
 - DHT22 temperature and humidity sensor
 - IR receiver
-- IR transmitter
+- Temporary harvested IR LED from previous transmitter module, driven by a 2N2222 with 1kΩ base and 100Ω LED resistors
+- Planned final LED: bare 5mm 940 nm IR LED (not yet available)
 - Test air conditioner: AUX DC inverter, with original remote
 - Future implementation air conditioner: Panasonic window type
 
@@ -15,9 +16,10 @@ Capstone project workspace for the design and development of an IoT-based air-co
 
 | Component | Connection | ESP32 pin |
 | --- | --- | --- |
-| IR transmitter | DAT | GPIO 25 |
-| IR transmitter | VCC | 3.3V initially |
-| IR transmitter | GND | GND |
+| IR driver | Base through 1kΩ resistor | GPIO 25 |
+| IR driver | 2N2222 emitter | GND |
+| IR driver | 2N2222 collector | Harvested LED cathode (-) |
+| Harvested LED | Anode (+) through 100Ω resistor | 5V/VIN (verify board rail) |
 | IR receiver | SIGNAL | GPIO 27 |
 | IR receiver | VCC | 3.3V |
 | IR receiver | GND | GND |
@@ -29,7 +31,11 @@ Capstone project workspace for the design and development of an IoT-based air-co
 | OFF button | One terminal | GPIO 26 |
 | OFF button | Other terminal | GND |
 
-See [docs/wiring.md](docs/wiring.md) for the wiring reference.
+See [docs/wiring.md](docs/wiring.md) for the wiring reference. The old 3-pin transmitter module is no longer connected; only its removed LED is reused. Its wavelength, current rating, and polarity are unconfirmed—do not describe it as a confirmed 940 nm LED. The 100Ω resistor is the requested test value, not a validated current rating for this unknown LED.
+
+Temporary circuit: GPIO 25 → 1kΩ → 2N2222 base; emitter → GND; collector → LED cathode; LED anode → 100Ω → board 5V/VIN. Keep all grounds common. Verify the transistor pinout, LED polarity, and the board's actual 5V rail before powering. `IR_SEND_INVERTED` remains false. Recommended: 100nF ceramic capacitor across IR receiver VCC/GND, close to the receiver.
+
+Initially test 10–20 cm from the AC receiver. If possible, compare IR emission with the original remote using a phone camera; some cameras filter IR. Only the AC's physical response verifies transmission. A proper bare 5mm 940 nm LED remains planned; select its resistor from its actual specifications when available.
 
 ## Future system architecture (not implemented)
 
@@ -91,7 +97,7 @@ The sketch defaults to Wi-Fi and NTP disabled. If you enable them later, define 
 5. Open Serial Monitor at **115200 baud**, with **Newline**, **Carriage return**, or **Both NL & CR** enabled. Commands are processed only when a line ends.
 6. Run `status`, then `dht` to confirm sensor readings.
 7. Aim the AUX remote at the IR receiver and press its ON and OFF commands separately. Copy each printed source/raw capture into a documented capture record.
-8. The recorded 13-byte ELECTRA_AC states are already configured. Firmware now routes ON/OFF by the library's power bit, correcting the original reversed labels while preserving the historical capture records. Use `on` and `off` to test actual AC response. If neither works, follow [IR troubleshooting](docs/ir-troubleshooting.md), including the `capture` / `replay` diagnostic.
+8. The recorded 13-byte ELECTRA_AC states use the labels confirmed from actual AUX behavior: ON ends `00 05 90` and OFF ends `00 05 B0`. Do not reverse them based on an inferred protocol bit. Use `on` and `off` to test actual AC response. If neither works, follow [IR troubleshooting](docs/ir-troubleshooting.md), including the `capture` / `replay` diagnostic.
 
 Available serial commands: `status`, `dht`, `time`, `on`, `off`, `capture`, and `replay`. `capture` records the next non-overflowed, non-repeat remote frame in RAM and pauses DHT/local sending for up to 60 seconds. `replay` transmits its raw timings at 38 kHz. Neither command changes the permanent ON/OFF states.
 
@@ -148,8 +154,8 @@ Pull with `git pull --ff-only` before editing/uploading. Use small branches/PRs 
 
 - [ ] ESP32 sketch uploaded
 - [ ] DHT22 produces reliable readings
-- [x] ON-labelled ELECTRA_AC capture recorded (label unverified)
-- [x] OFF-labelled ELECTRA_AC capture recorded (label unverified)
+- [x] AUX ON ELECTRA_AC capture recorded (label physically confirmed)
+- [x] AUX OFF ELECTRA_AC capture recorded (label physically confirmed)
 - [ ] Captures documented with settings and protocol/raw data
 - [ ] AUX ON replay verified
 - [ ] AUX OFF replay verified
@@ -168,6 +174,6 @@ Pull with `git pull --ff-only` before editing/uploading. Use small branches/PRs 
 ## Unresolved questions
 
 - Which exact DHT22 module variant is used, and does it require an external pull-up resistor on DATA?
-- Do fresh captures and physical replay confirm the corrected ON/OFF mapping and library timings?
-- Does the IR transmitter circuit provide sufficient range and current at 3.3V, or will a transistor-driven supply be needed later?
+- Does physical replay with the temporary transistor-driven LED reliably reproduce the confirmed ON/OFF captures?
+- What are the harvested LED's polarity, wavelength, and current rating, and does the temporary driver provide adequate range?
 - What energy-meter hardware and electrical isolation approach will be selected for the future energy-monitoring phase?

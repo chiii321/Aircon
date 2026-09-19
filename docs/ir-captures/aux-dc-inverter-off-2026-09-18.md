@@ -15,7 +15,7 @@
 
 ## State data
 
-Audit note: the recorded OFF label is unverified. The library interprets this frame's power bit as ON (byte 9 is `0x20`). Preserve this original capture and confirm the label with a fresh capture and physical replay.
+User confirmation (2026-09-19): the OFF label comes from actual AUX behavior observed during capture. Preserve these exact bytes and this label; do not reverse based on an inferred protocol bit. Replay with the temporary harvested-LED transistor circuit remains pending.
 
 ```cpp
 uint8_t AUX_OFF_STATE[13] = {
