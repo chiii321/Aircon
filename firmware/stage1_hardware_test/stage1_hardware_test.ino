@@ -1,6 +1,6 @@
 /*
   Stage 1 hardware test for ESP32-WROOM-32.
-  AUX ELECTRA_AC control and raw replay diagnostics. Physical replay unverified.
+  AUX COOLIX control and raw replay diagnostics. Physical replay unverified.
 */
 
 #include <Arduino.h>
@@ -9,7 +9,6 @@
 #include <IRrecv.h>
 #include <IRsend.h>
 #include <IRutils.h>
-#include <ir_Electra.h>
 
 #define DHT_PIN 32
 #define DHT_TYPE DHT22
@@ -70,7 +69,7 @@ Button onButton = {ON_BUTTON_PIN, HIGH, HIGH, 0};
 Button offButton = {OFF_BUTTON_PIN, HIGH, HIGH, 0};
 
 // Avoid Arduino generating this prototype before the Button type is defined.
-void checkButton(Button& button, const char* message, const uint8_t state[],
+void checkButton(Button& button, const char* message, uint32_t code,
                  const char* command);
 
 #if ENABLE_WIFI
@@ -99,22 +98,9 @@ const char kControlPage[] = R"rawliteral(
 </html>
 )rawliteral";
 #endif
-// Labels confirmed from physical AUX behavior. Preserve these exact captures;
-// do not override them using an inferred protocol power bit.
-const uint8_t kAuxOnState[] = {
-    0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20,
-    0x00, 0x00, 0x00, 0x00, 0x05, 0x90,
-};
-
-const uint8_t kAuxOffState[] = {
-    0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20,
-    0x00, 0x00, 0x20, 0x00, 0x05, 0xB0,
-};
-
-static_assert(sizeof(kAuxOnState) == kElectraAcStateLength,
-              "AUX ON state must be an ELECTRA_AC state frame.");
-static_assert(sizeof(kAuxOffState) == kElectraAcStateLength,
-              "AUX OFF state must be an ELECTRA_AC state frame.");
+// Confirmed twice from original remote button presses; physical ESP32 replay pending.
+constexpr uint32_t kAuxOnCode = 0xB21F38;
+constexpr uint32_t kAuxOffCode = 0xB27BE0;
 
 void printDht() {
   if (capturePending) {
@@ -147,20 +133,16 @@ void printTime() {
 #endif
 }
 
-void sendAuxState(const uint8_t state[], const char* command) {
+void sendAuxState(uint32_t code, const char* command) {
   if (capturePending) {
     Serial.println("Capture is armed; wait for the remote or the 60-second timeout before sending.");
     return;
   }
-  if (!IRElectraAc::validChecksum(state, kElectraAcStateLength)) {
-    Serial.println("Invalid AUX capture checksum; transmission skipped.");
-    return;
-  }
   irReceiver.disableIRIn();
-  irSender.sendElectraAC(state, kElectraAcStateLength);
+  irSender.sendCOOLIX(code);
   delay(100);
   irReceiver.enableIRIn();
-  Serial.printf("Sent AUX %s ELECTRA_AC state. Replay is not yet verified.\n", command);
+  Serial.printf("Sent AUX %s COOLIX code 0x%06lX. AC response is not yet verified.\n", command, static_cast<unsigned long>(code));
 }
 
 void captureNext() {
@@ -193,14 +175,14 @@ void handleWebRoot() {
 
 void handleWebOn() {
   Serial.println("Web ON request received.");
-  sendAuxState(kAuxOnState, "ON");
+  sendAuxState(kAuxOnCode, "ON");
   server.sendHeader("Location", "/");
   server.send(303);
 }
 
 void handleWebOff() {
   Serial.println("Web OFF request received.");
-  sendAuxState(kAuxOffState, "OFF");
+  sendAuxState(kAuxOffCode, "OFF");
   server.sendHeader("Location", "/");
   server.send(303);
 }
@@ -219,7 +201,7 @@ void startLocalWebServer() {
 }
 #endif
 
-void checkButton(Button& button, const char* message, const uint8_t state[],
+void checkButton(Button& button, const char* message, uint32_t code,
                  const char* command) {
   const bool reading = digitalRead(button.pin);
 
@@ -233,7 +215,7 @@ void checkButton(Button& button, const char* message, const uint8_t state[],
 
     if (button.stableState == LOW) {
       Serial.println(message);
-      sendAuxState(state, command);
+      sendAuxState(code, command);
     }
   }
 
@@ -246,8 +228,8 @@ void printStatus() {
                 DHT_PIN, IR_RECEIVE_PIN, IR_SEND_PIN);
   Serial.printf("ON button GPIO: %d | OFF button GPIO: %d (active LOW, 50 ms debounce)\n",
                 ON_BUTTON_PIN, OFF_BUTTON_PIN);
-  Serial.println("AUX ON/OFF captures: configured (replay not yet verified)");
-  Serial.println("ON/OFF labels confirmed from physical capture; replay with this transmitter remains unverified.");
+  Serial.println("AUX COOLIX ON/OFF codes: configured (AC response not yet verified)");
+  Serial.println("ON/OFF labels confirmed from original remote presses.");
   Serial.printf("IR TX inverted: %s | raw replay carrier: %u kHz | captured timings: %u\n",
                 IR_SEND_INVERTED ? "yes" : "no", kRawReplayKhz, capturedRawLength);
   Serial.printf("Build: %s %s\n", __DATE__, __TIME__);
@@ -266,9 +248,9 @@ void handleCommand(const String& command) {
   } else if (command == "time") {
     printTime();
   } else if (command == "on") {
-    sendAuxState(kAuxOnState, "ON");
+    sendAuxState(kAuxOnCode, "ON");
   } else if (command == "off") {
-    sendAuxState(kAuxOffState, "OFF");
+    sendAuxState(kAuxOffCode, "OFF");
   } else if (command == "capture") {
     captureNext();
   } else if (command == "replay") {
@@ -351,8 +333,8 @@ void loop() {
 
   checkSerial();
 
-  checkButton(onButton, "Physical ON button pressed.", kAuxOnState, "ON");
-  checkButton(offButton, "Physical OFF button pressed.", kAuxOffState, "OFF");
+  checkButton(onButton, "Physical ON button pressed.", kAuxOnCode, "ON");
+  checkButton(offButton, "Physical OFF button pressed.", kAuxOffCode, "OFF");
 
 #if ENABLE_WIFI
   const bool connected = WiFi.status() == WL_CONNECTED;

@@ -12,11 +12,10 @@ record `git rev-parse --short HEAD`. Open only
 `status` output (including build date/time). Pulling GitHub changes does not update
 the firmware already on the ESP32. Keep local credentials out of Git.
 
-The firmware preserves the physically confirmed captures: ON is
-`C3 88 E0 00 40 00 20 00 00 00 00 05 90`; OFF is
-`C3 88 E0 00 40 00 20 00 00 20 00 05 B0`.
-An inferred protocol power bit must not override those observed labels.
-Replay with the new temporary transmitter still requires physical verification.
+The current firmware sends the original remote's twice-confirmed COOLIX codes:
+ON `0xB21F38`, OFF `0xB27BE0`. The older ELECTRA_AC captures remain archived
+under `docs/ir-captures/`. Replay with the temporary transmitter still requires
+physical verification.
 
 ## Test one link at a time
 

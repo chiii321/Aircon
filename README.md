@@ -97,7 +97,7 @@ The sketch defaults to Wi-Fi and NTP disabled. If you enable them later, define 
 5. Open Serial Monitor at **115200 baud**, with **Newline**, **Carriage return**, or **Both NL & CR** enabled. Commands are processed only when a line ends.
 6. Run `status`, then `dht` to confirm sensor readings.
 7. Aim the AUX remote at the IR receiver and press its ON and OFF commands separately. Copy each printed source/raw capture into a documented capture record.
-8. The recorded 13-byte ELECTRA_AC states use the labels confirmed from actual AUX behavior: ON ends `00 05 90` and OFF ends `00 05 B0`. Do not reverse them based on an inferred protocol bit. Use `on` and `off` to test actual AC response. If neither works, follow [IR troubleshooting](docs/ir-troubleshooting.md), including the `capture` / `replay` diagnostic.
+8. The current ON/OFF commands use the original remote's confirmed COOLIX captures: ON `0xB21F38`, OFF `0xB27BE0`. Use `on` and `off` to test actual AC response. If neither works, follow [IR troubleshooting](docs/ir-troubleshooting.md), including the `capture` / `replay` diagnostic. The older ELECTRA_AC captures remain archived under `docs/ir-captures/`.
 
 Available serial commands: `status`, `dht`, `time`, `on`, `off`, `capture`, and `replay`. `capture` records the next non-overflowed, non-repeat remote frame in RAM and pauses DHT/local sending for up to 60 seconds. `replay` transmits its raw timings at 38 kHz. Neither command changes the permanent ON/OFF states.
 
@@ -154,8 +154,8 @@ Pull with `git pull --ff-only` before editing/uploading. Use small branches/PRs 
 
 - [ ] ESP32 sketch uploaded
 - [ ] DHT22 produces reliable readings
-- [x] AUX ON ELECTRA_AC capture recorded (label physically confirmed)
-- [x] AUX OFF ELECTRA_AC capture recorded (label physically confirmed)
+- [x] AUX ON COOLIX code captured twice (`0xB21F38`)
+- [x] AUX OFF COOLIX code captured twice (`0xB27BE0`)
 - [ ] Captures documented with settings and protocol/raw data
 - [ ] AUX ON replay verified
 - [ ] AUX OFF replay verified

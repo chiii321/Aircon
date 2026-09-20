@@ -23,7 +23,6 @@ mock = r'''
 using std::isnan;
 constexpr bool HIGH = true, LOW = false;
 constexpr int INPUT_PULLUP = 2, DHT22 = 22;
-constexpr uint16_t kElectraAcStateLength = 13;
 uint32_t clockMs = 0;
 bool pins[40];
 uint32_t millis() { return clockMs; }
@@ -76,23 +75,14 @@ struct IRrecv {
 std::string resultToHumanReadableBasic(decode_results*) { return "decoded"; }
 std::string resultToSourceCode(decode_results*) { return "source"; }
 struct IRsend {
-  std::vector<std::vector<uint8_t>> sent;
+  std::vector<uint64_t> sent;
   std::vector<std::vector<uint16_t>> rawSent;
   IRsend(int, bool) {}
   void begin() {}
   void sendRaw(const uint16_t* data, uint16_t length, uint16_t khz) {
     assert(khz == 38); rawSent.emplace_back(data, data + length);
   }
-  void sendElectraAC(const uint8_t* data, uint16_t length) {
-    sent.emplace_back(data, data + length);
-  }
-};
-struct IRElectraAc {
-  static bool validChecksum(const uint8_t* data, uint16_t length) {
-    uint8_t sum = 0;
-    for (uint16_t i = 0; i + 1 < length; ++i) sum += data[i];
-    return sum == data[length - 1];
-  }
+  void sendCOOLIX(uint64_t code) { sent.push_back(code); }
 };
 constexpr int WIFI_STA = 1, WL_CONNECTED = 3, HTTP_GET = 0, HTTP_POST = 1;
 struct WifiMock {
@@ -122,18 +112,16 @@ bool getLocalTime(tm*, uint32_t timeout) { assert(timeout == 0); return false; }
 checks = r'''
 void sample(Button& b, bool level, uint32_t elapsed) {
   clockMs += elapsed; pins[b.pin] = level;
-  checkButton(b, "press", b.pin == ON_BUTTON_PIN ? kAuxOnState : kAuxOffState, "test");
+  checkButton(b, "press", b.pin == ON_BUTTON_PIN ? kAuxOnCode : kAuxOffCode, "test");
 }
 void serial(const std::string& line) {
   Serial.input += line;
   while (Serial.available()) checkSerial();
 }
 int main() {
-  // Physical capture labels take precedence over inferred protocol bits.
-  const std::vector<uint8_t> confirmedOn = {0xC3,0x88,0xE0,0,0x40,0,0x20,0,0,0,0,5,0x90};
-  const std::vector<uint8_t> confirmedOff = {0xC3,0x88,0xE0,0,0x40,0,0x20,0,0,0x20,0,5,0xB0};
-  assert(std::vector<uint8_t>(kAuxOnState, kAuxOnState + 13) == confirmedOn);
-  assert(std::vector<uint8_t>(kAuxOffState, kAuxOffState + 13) == confirmedOff);
+  const uint64_t confirmedOn = 0xB21F38;
+  const uint64_t confirmedOff = 0xB27BE0;
+  assert(kAuxOnCode == confirmedOn && kAuxOffCode == confirmedOff);
   assert(IR_SEND_PIN == 25 && IR_RECEIVE_PIN == 27 && DHT_PIN == 32);
   assert(ON_BUTTON_PIN == 33 && OFF_BUTTON_PIN == 26 && !IR_SEND_INVERTED);
   for (bool& pin : pins) pin = HIGH;
@@ -165,15 +153,13 @@ int main() {
   serial(" ON \r\noff\non\roff\r\n");
   assert(irSender.sent.size() == before + 4);
   assert(irSender.sent[before] == confirmedOn && irSender.sent[before + 1] == confirmedOff);
-  assert(irSender.sent.back() == std::vector<uint8_t>(kAuxOffState, kAuxOffState + 13));
+  assert(irSender.sent.back() == kAuxOffCode);
   before = irSender.sent.size(); serial("o");
   sample(offButton, LOW, 0); sample(offButton, LOW, 50);
   assert(irSender.sent.size() == before + 1); // incomplete input doesn't block buttons
   serial("n\n"); assert(irSender.sent.size() == before + 2);
   before = irSender.sent.size(); serial(std::string(33, 'x') + "on\noff\n");
   assert(irSender.sent.size() == before + 1);
-  uint8_t invalid[13] = {}; invalid[12] = 1;
-  sendAuxState(invalid, "invalid"); assert(irSender.sent.size() == before + 1);
   assert(irReceiver.enabled);
   irReceiver.pending = true; irResults.overflow = true;
   clockMs += 2000; const int reads = dht.reads; loop();

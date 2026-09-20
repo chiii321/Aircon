@@ -16,9 +16,9 @@ Record all of the following:
 - Date captured
 - Whether replay was verified, including a brief test result
 
-The Stage 1 sketch prints decoded information and Arduino source/raw data to Serial Monitor. Preserve the output exactly. The existing ON/OFF records contain 13-byte ELECTRA_AC state data, already copied into `kAuxOnState` and `kAuxOffState`; there are no raw placeholders in the maintained sketch. Do not reuse captures marked as overflowing/incomplete.
+The Stage 1 sketch prints decoded information and Arduino source/raw data to Serial Monitor. Preserve the output exactly. The current ON/OFF firmware sends the COOLIX codes in [the latest capture record](aux-coolix-2026-09-20.md). Older 13-byte ELECTRA_AC captures remain archived here. Do not reuse captures marked as overflowing/incomplete.
 
-Both recorded checksums are valid. ON/OFF labels are confirmed by the user from actual AUX behavior during capture. Firmware uses these exact records under their original labels; inferred protocol bits must not override that physical evidence. Replay with the temporary harvested-LED transistor circuit remains unverified. See [the library's protocol definition](https://github.com/crankyoldgit/IRremoteESP8266/blob/v2.8.6/src/ir_Electra.h) and [power/checksum implementation](https://github.com/crankyoldgit/IRremoteESP8266/blob/v2.8.6/src/ir_Electra.cpp).
+The older ELECTRA_AC checksums are valid, but the fresh COOLIX captures decoded consistently twice. Firmware now tests the COOLIX codes. Physical AC response with the temporary harvested-LED transistor circuit remains unverified.
 
 For fresh diagnostics use [capture/replay and the hardware handoff](../ir-troubleshooting.md). Save complete raw output, settings, tested commit, and observed AC response.
 
