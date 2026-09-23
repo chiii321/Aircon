@@ -21,31 +21,11 @@
 #define IR_SEND_INVERTED false  // Set true only for a confirmed active-LOW driver.
 #endif
 constexpr uint16_t kRawReplayKhz = 38;  // Receiver cannot measure carrier frequency.
-const char kCommands[] = "status, dht, time, on, off, capture, replay";
+const char kCommands[] = "status, dht, on, off, testir, capture, replay";
 bool capturePending = false;
 uint32_t captureStartedMs = 0;
 uint16_t* capturedRaw = nullptr;
 uint16_t capturedRawLength = 0;
-
-// Keep false until Wi-Fi credentials are supplied outside version control.
-#ifndef ENABLE_WIFI
-#define ENABLE_WIFI false
-#endif
-
-#if ENABLE_WIFI
-#include <WiFi.h>
-#include <WebServer.h>
-#include <time.h>
-#include "wifi_credentials.h"
-
-// Define WIFI_SSID and WIFI_PASSWORD in a local, ignored credentials header.
-#ifndef WIFI_SSID
-#error "Define WIFI_SSID before enabling Wi-Fi."
-#endif
-#ifndef WIFI_PASSWORD
-#error "Define WIFI_PASSWORD before enabling Wi-Fi."
-#endif
-#endif
 
 constexpr uint16_t kCaptureBufferSize = 1024;
 constexpr uint8_t kCaptureTimeoutMs = 50;
@@ -72,32 +52,6 @@ Button offButton = {OFF_BUTTON_PIN, HIGH, HIGH, 0};
 void checkButton(Button& button, const char* message, uint32_t code,
                  const char* command);
 
-#if ENABLE_WIFI
-WebServer server(80);
-bool wifiWasConnected = false;
-
-const char kControlPage[] = R"rawliteral(
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>AUX AC Controller</title>
-    <style>
-      body { font-family: Arial, sans-serif; margin: 3rem auto; max-width: 28rem; padding: 0 1rem; text-align: center; }
-      button { border: 0; border-radius: .5rem; color: white; cursor: pointer; font-size: 1.25rem; margin: .5rem; padding: 1rem 2rem; }
-      .on { background: #198754; } .off { background: #dc3545; }
-    </style>
-  </head>
-  <body>
-    <h1>AUX AC Controller</h1>
-    <p>Local ESP32 control</p>
-    <form action="/on" method="post"><button class="on" type="submit">Turn ON</button></form>
-    <form action="/off" method="post"><button class="off" type="submit">Turn OFF</button></form>
-  </body>
-</html>
-)rawliteral";
-#endif
 // Confirmed twice from original remote button presses; physical ESP32 replay pending.
 constexpr uint32_t kAuxOnCode = 0xB21F38;
 constexpr uint32_t kAuxOffCode = 0xB27BE0;
@@ -118,21 +72,6 @@ void printDht() {
   Serial.printf("DHT22: %.1f C, %.1f %% RH\n", temperatureC, humidity);
 }
 
-void printTime() {
-#if ENABLE_WIFI
-  struct tm timeInfo;
-  if (getLocalTime(&timeInfo, 0)) {
-    Serial.printf("Time (UTC+8): %04d-%02d-%02d %02d:%02d:%02d\n",
-                  timeInfo.tm_year + 1900, timeInfo.tm_mon + 1, timeInfo.tm_mday,
-                  timeInfo.tm_hour, timeInfo.tm_min, timeInfo.tm_sec);
-  } else {
-    Serial.println("NTP time is not available yet.");
-  }
-#else
-  Serial.println("Wi-Fi/NTP is disabled in this sketch.");
-#endif
-}
-
 void sendAuxState(uint32_t code, const char* command) {
   if (capturePending) {
     Serial.println("Capture is armed; wait for the remote or the 60-second timeout before sending.");
@@ -143,6 +82,21 @@ void sendAuxState(uint32_t code, const char* command) {
   delay(100);
   irReceiver.enableIRIn();
   Serial.printf("Sent AUX %s COOLIX code 0x%06lX. AC response is not yet verified.\n", command, static_cast<unsigned long>(code));
+}
+
+void testIrLed() {
+  if (capturePending) {
+    Serial.println("Capture is armed; wait for the remote or the 60-second timeout before sending.");
+    return;
+  }
+  static const uint16_t pulse[] = {5000, 5000};  // 5 ms 38 kHz burst, 5 ms off
+  irReceiver.disableIRIn();
+  for (uint8_t i = 0; i < 8; ++i) {
+    irSender.sendRaw(pulse, 2, kRawReplayKhz);
+    delay(100);
+  }
+  irReceiver.enableIRIn();
+  Serial.println("IR LED test bursts sent. A phone camera may filter 940 nm IR.");
 }
 
 void captureNext() {
@@ -167,39 +121,6 @@ void replayCaptured() {
   Serial.printf("Replayed %u raw timings at %u kHz. Check the actual AC response.\n",
                 capturedRawLength, kRawReplayKhz);
 }
-
-#if ENABLE_WIFI
-void handleWebRoot() {
-  server.send(200, "text/html", kControlPage);
-}
-
-void handleWebOn() {
-  Serial.println("Web ON request received.");
-  sendAuxState(kAuxOnCode, "ON");
-  server.sendHeader("Location", "/");
-  server.send(303);
-}
-
-void handleWebOff() {
-  Serial.println("Web OFF request received.");
-  sendAuxState(kAuxOffCode, "OFF");
-  server.sendHeader("Location", "/");
-  server.send(303);
-}
-
-void startLocalWebServer() {
-  WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.println("Connecting to Wi-Fi in background; physical/Serial controls remain available.");
-
-  configTime(8 * 60 * 60, 0, "pool.ntp.org", "time.nist.gov");
-  server.on("/", HTTP_GET, handleWebRoot);
-  server.on("/on", HTTP_POST, handleWebOn);
-  server.on("/off", HTTP_POST, handleWebOff);
-  server.begin();
-}
-#endif
 
 void checkButton(Button& button, const char* message, uint32_t code,
                  const char* command) {
@@ -233,11 +154,7 @@ void printStatus() {
   Serial.printf("IR TX inverted: %s | raw replay carrier: %u kHz | captured timings: %u\n",
                 IR_SEND_INVERTED ? "yes" : "no", kRawReplayKhz, capturedRawLength);
   Serial.printf("Build: %s %s\n", __DATE__, __TIME__);
-#if ENABLE_WIFI
-  Serial.printf("Wi-Fi: %s\n", WiFi.status() == WL_CONNECTED ? "connected" : "not connected");
-#else
-  Serial.println("Wi-Fi/NTP: disabled");
-#endif
+  Serial.println("Standalone Stage 1 hardware test; no network services.");
 }
 
 void handleCommand(const String& command) {
@@ -245,12 +162,12 @@ void handleCommand(const String& command) {
     printStatus();
   } else if (command == "dht") {
     printDht();
-  } else if (command == "time") {
-    printTime();
   } else if (command == "on") {
     sendAuxState(kAuxOnCode, "ON");
   } else if (command == "off") {
     sendAuxState(kAuxOffCode, "OFF");
+  } else if (command == "testir") {
+    testIrLed();
   } else if (command == "capture") {
     captureNext();
   } else if (command == "replay") {
@@ -271,10 +188,6 @@ void setup() {
   onButton.lastReading = onButton.stableState = digitalRead(ON_BUTTON_PIN);
   offButton.lastReading = offButton.stableState = digitalRead(OFF_BUTTON_PIN);
   onButton.lastChangedMs = offButton.lastChangedMs = millis();
-
-#if ENABLE_WIFI
-  startLocalWebServer();
-#endif
 
   Serial.printf("Stage 1 ready. Use: %s\n", kCommands);
   printStatus();
@@ -335,16 +248,6 @@ void loop() {
 
   checkButton(onButton, "Physical ON button pressed.", kAuxOnCode, "ON");
   checkButton(offButton, "Physical OFF button pressed.", kAuxOffCode, "OFF");
-
-#if ENABLE_WIFI
-  const bool connected = WiFi.status() == WL_CONNECTED;
-  if (connected && !wifiWasConnected) {
-    Serial.print("Local web controller: http://");
-    Serial.println(WiFi.localIP());
-  }
-  wifiWasConnected = connected;
-  if (connected) server.handleClient();
-#endif
 
   if (!capturePending && millis() - lastDhtReadMs >= kDhtIntervalMs) {
     lastDhtReadMs = millis();

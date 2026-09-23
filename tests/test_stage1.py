@@ -84,30 +84,6 @@ struct IRsend {
   }
   void sendCOOLIX(uint64_t code) { sent.push_back(code); }
 };
-constexpr int WIFI_STA = 1, WL_CONNECTED = 3, HTTP_GET = 0, HTTP_POST = 1;
-struct WifiMock {
-  int connection = 0;
-  void mode(int) {}
-  void setAutoReconnect(bool) {}
-  void begin(const char*, const char*) {}
-  int status() { return connection; }
-  std::string localIP() { return "192.0.2.1"; }
-} WiFi;
-struct WebServer {
-  std::map<std::string, void(*)()> routes;
-  int polls = 0;
-  bool started = false;
-  WebServer(int) {}
-  void on(const char* path, int, void(*handler)()) { routes[path] = handler; }
-  void begin() { started = true; }
-  void handleClient() { ++polls; }
-  void send(int, const char* = "", const char* = "") {}
-  void sendHeader(const char*, const char*) {}
-};
-void configTime(int, int, const char*, const char*) {}
-bool getLocalTime(tm*, uint32_t timeout) { assert(timeout == 0); return false; }
-#define WIFI_SSID "test"
-#define WIFI_PASSWORD "test-only"
 '''
 checks = r'''
 void sample(Button& b, bool level, uint32_t elapsed) {
@@ -127,7 +103,7 @@ int main() {
   for (bool& pin : pins) pin = HIGH;
   pins[ON_BUTTON_PIN] = LOW;
   setup();
-  assert(clockMs == 0); // no startup wait for Wi-Fi
+  assert(clockMs == 0); // no startup delay
   sample(onButton, LOW, 100); // held at boot: no send
   assert(irSender.sent.empty());
   sample(onButton, HIGH, 0); sample(onButton, HIGH, 50);
@@ -183,15 +159,7 @@ int main() {
   assert(irReceiver.enabled);
   serial("capture\nreplay\n"); assert(irSender.rawSent.size() == 1); // no stale replay
   clockMs += 60000; loop(); assert(!capturePending && capturedRaw == nullptr);
-#if ENABLE_WIFI
-  assert(server.started && server.routes.size() == 3);
-  WiFi.connection = WL_CONNECTED; loop(); assert(server.polls == 1);
-  server.routes["/on"](); assert(irSender.sent.back() == confirmedOn);
-  server.routes["/off"](); assert(irSender.sent.back() == confirmedOff);
-  WiFi.connection = 0; loop(); assert(!wifiWasConnected);
-  WiFi.connection = WL_CONNECTED; loop(); assert(wifiWasConnected);
-#endif
-  std::puts("PASS: mapping, buttons, Serial, capture/replay, timeout, RX/DHT and Wi-Fi flow");
+  std::puts("PASS: mapping, buttons, Serial, capture/replay, timeout, RX and DHT flow");
 }
 '''
 compiler = sys.argv[1] if len(sys.argv) > 1 else shutil.which("clang++") or shutil.which("g++")
@@ -201,6 +169,5 @@ with tempfile.TemporaryDirectory(prefix="aircon-test-") as temp:
     source = Path(temp) / "stage1.cpp"
     binary = Path(temp) / "stage1.exe"
     source.write_text(mock + sketch + checks)
-    for wifi in (0, 1):
-        subprocess.run([compiler, "-std=c++17", f"-DENABLE_WIFI={wifi}", str(source), "-o", str(binary)], check=True)
-        subprocess.run([str(binary)], check=True)
+    subprocess.run([compiler, "-std=c++17", str(source), "-o", str(binary)], check=True)
+    subprocess.run([str(binary)], check=True)

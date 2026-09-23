@@ -18,7 +18,7 @@ Record all of the following:
 
 The Stage 1 sketch prints decoded information and Arduino source/raw data to Serial Monitor. Preserve the output exactly. The current ON/OFF firmware sends the COOLIX codes in [the latest capture record](aux-coolix-2026-09-20.md). Older 13-byte ELECTRA_AC captures remain archived here. Do not reuse captures marked as overflowing/incomplete.
 
-The older ELECTRA_AC checksums are valid, but the fresh COOLIX captures decoded consistently twice. Firmware now tests the COOLIX codes. Physical AC response with the temporary harvested-LED transistor circuit remains unverified.
+The older ELECTRA_AC checksums are valid, but the fresh COOLIX captures decoded consistently twice. Firmware sends the COOLIX codes. Physical AC response through the 2N2222A and bare 940 nm LED remains unverified.
 
 For fresh diagnostics use [capture/replay and the hardware handoff](../ir-troubleshooting.md). Save complete raw output, settings, tested commit, and observed AC response.
 

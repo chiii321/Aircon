@@ -15,12 +15,7 @@ jobs:
           arduino-cli core update-index
           arduino-cli core install esp32:esp32@2.0.17
           arduino-cli lib install 'IRremoteESP8266@2.8.6' 'DHT sensor library@1.4.6' 'Adafruit Unified Sensor@1.1.15'
-      - name: Host regression checks (both Wi-Fi modes)
+      - name: Host regression checks
         run: python3 tests/test_stage1.py g++
       - name: Compile standalone firmware
         run: arduino-cli compile --fqbn esp32:esp32:esp32 firmware/stage1_hardware_test
-      - name: Compile local web firmware with dummy credentials
-        shell: bash
-        run: |
-          printf '#define WIFI_SSID "ci-only"\n#define WIFI_PASSWORD "ci-only-not-real"\n' > firmware/stage1_hardware_test/wifi_credentials.h
-          arduino-cli compile --fqbn esp32:esp32:esp32 --build-property 'compiler.cpp.extra_flags=-DENABLE_WIFI=1' firmware/stage1_hardware_test

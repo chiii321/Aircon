@@ -20,11 +20,12 @@ physical verification.
 ## Test one link at a time
 
 1. Confirm the original remote operates the AC. Record exact AC and remote model
-   numbers. The current transmitter is a temporary harvested IR LED from the
-   previous transmitter module, driven through a 2N2222 as shown in [wiring.md](wiring.md).
-   The old module board is no longer used. LED wavelength, current rating, and
-   polarity are unconfirmed; a proper bare 5mm 940 nm LED is still planned.
-2. At 115200 baud with a line ending enabled, try `on` and `off` separately while
+   numbers. The current transmitter uses a bare 5mm 940 nm LED with a 2N2222A
+   driver as shown in [wiring.md](wiring.md). Size the series resistor from the
+   LED datasheet and measured supply voltage.
+2. At 115200 baud, send `testir` and compare through a phone camera with the
+   original remote. A camera that blocks 940 nm may show neither; no visible
+   camera flash does not establish a failed transmitter. Then try `on` and `off` separately while
    aiming at the AC receiver from 10–20 cm initially. Observe the AC beep/display/power response;
    compressor startup can be delayed. Respect the AC manual's restart interval.
 3. If neither works, type `capture`. DHT reads and local sends pause for at most
@@ -38,11 +39,10 @@ physical verification.
 5. If raw replay works but `on`/`off` does not, commit the fresh state AND raw
    timings plus remote settings under `docs/ir-captures/`. The saved protocol,
    frame contents, or library timing is then the next item to investigate.
-6. If raw replay also fails, verify the harvested LED polarity, exact 2N2222
-   pinout, common ground, 1kΩ base resistor, 100Ω LED resistor, and board 5V/VIN rail.
-   The test resistor value does not establish a safe current for an unidentified LED. Compare the
-   original remote and transmitter with the same phone camera: visible flashes
-   are only a rough emission check; an IR-filtered camera can show neither.
+6. If raw replay also fails, verify LED polarity, exact 2N2222A pinout, common
+   ground, 1kΩ base resistor, datasheet-sized LED resistor, and board 5V/VIN rail.
+   Compare with a camera or detector known to show 940 nm; many phone cameras
+   filter it and show nothing.
    A second receiver/ESP32 or oscilloscope gives better evidence. The sender's
    own receiver is deliberately disabled during sending, so its silence is expected.
 
@@ -75,7 +75,3 @@ Raw replay ON/OFF response:
 Distance / orientation:
 Complete Serial capture output:
 ```
-
-The local web page uses the same sender as Serial/buttons. Changing a webpage
-cannot fix an IR emitter fault. It is an unauthenticated local test service;
-keep it on a trusted test network and do not forward its port to the internet.
