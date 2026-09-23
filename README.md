@@ -16,9 +16,9 @@ Capstone project workspace for an IoT-based air-conditioning controller. Stage 1
 | Component | Connection | ESP32 pin |
 | --- | --- | --- |
 | IR driver | Base through 1kΩ resistor | GPIO 25 |
-| IR driver | 2N2222 emitter | GND |
-| IR driver | 2N2222 collector | Harvested LED cathode (-) |
-| 940 nm IR LED | Anode (+) through current-limiting resistor | 5V/VIN |
+| IR driver | 2N2222A emitter | GND |
+| IR driver | 2N2222A collector | 940 nm IR LED cathode (-) |
+| 940 nm IR LED | Anode (+) through 330Ω resistor | 5V/VIN |
 | IR receiver | SIGNAL | GPIO 27 |
 | IR receiver | VCC | 3.3V |
 | IR receiver | GND | GND |

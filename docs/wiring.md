@@ -6,7 +6,7 @@ Use the listed connections for the current ESP32-WROOM-32 30-pin board hardware 
 | --- | --- | --- |
 | 2N2222 | BASE | GPIO 25 through 1kΩ resistor |
 | 2N2222 | EMITTER | GND |
-| 2N2222 | COLLECTOR | Harvested IR LED cathode (-) |
+| 2N2222A | COLLECTOR | 940 nm IR LED cathode (-) |
 | 940 nm IR LED | Anode (+) | ESP32 5V/VIN through a current-limiting resistor |
 | IR receiver | SIGNAL | ESP32 GPIO 27 |
 | IR receiver | VCC | ESP32 3.3V |
