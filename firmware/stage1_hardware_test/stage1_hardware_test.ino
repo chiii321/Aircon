@@ -1,6 +1,7 @@
 /*
   Stage 1 hardware test for ESP32-WROOM-32.
   AUX COOLIX control and raw replay diagnostics. Physical replay unverified.
+  Current transmitter: harvested IR LED from the previous 3-pin module.
 */
 
 #include <Arduino.h>
@@ -124,7 +125,7 @@ void testIrLed() {
     delay(100);
   }
   irReceiver.enableIRIn();
-  Serial.println("IR LED test bursts sent. A phone camera may filter 940 nm IR.");
+  Serial.println("IR LED test bursts sent. Camera visibility depends on the camera and LED.");
 }
 
 void captureNext() {

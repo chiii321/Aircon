@@ -7,7 +7,7 @@ Capstone project workspace for an IoT-based air-conditioning controller. Stage 1
 - ESP32-WROOM-32, 30-pin board
 - DHT22 temperature and humidity sensor
 - IR receiver
-- Bare 5mm 940 nm IR LED, driven by a 2N2222A with a 1kΩ base resistor and a datasheet-sized LED current-limiting resistor
+- Temporary harvested IR LED from the previous 3-pin transmitter module, driven by a 2N2222A; its wavelength and ratings are unconfirmed. A bare 5mm 940 nm IR LED is still planned.
 - Test air conditioner: AUX DC inverter, with original remote
 - Future implementation air conditioner: Panasonic window type
 
@@ -17,8 +17,8 @@ Capstone project workspace for an IoT-based air-conditioning controller. Stage 1
 | --- | --- | --- |
 | IR driver | Base through 1kΩ resistor | GPIO 25 |
 | IR driver | 2N2222A emitter | GND |
-| IR driver | 2N2222A collector | 940 nm IR LED cathode (-) |
-| 940 nm IR LED | Anode (+) through 330Ω resistor | 5V/VIN |
+| IR driver | 2N2222A collector | Temporary harvested IR LED cathode (-) |
+| Temporary harvested IR LED | Anode (+) through series resistor | 5V/VIN |
 | IR receiver | SIGNAL | GPIO 27 |
 | IR receiver | VCC | 3.3V |
 | IR receiver | GND | GND |
@@ -30,11 +30,11 @@ Capstone project workspace for an IoT-based air-conditioning controller. Stage 1
 | OFF button | One terminal | GPIO 26 |
 | OFF button | Other terminal | GND |
 
-See [docs/wiring.md](docs/wiring.md) for the wiring reference. Use the bare 5mm 940 nm IR LED with a 330Ω series resistor as the initial low-current test; verify against the LED datasheet before changing it.
+See [docs/wiring.md](docs/wiring.md) for the temporary harvested-LED wiring. The final transmitter LED is planned to be a bare 5mm 940 nm IR LED, but its replacement series resistor must be selected from that LED's datasheet; do not assume the temporary LED has the same ratings.
 
-Transmitter circuit: GPIO 25 → 1kΩ → 2N2222A base; emitter → GND; collector → LED cathode; LED anode → 330Ω → board 5V/VIN. Keep grounds common. Verify transistor pinout, LED polarity, and the 5V rail before powering. `IR_SEND_INVERTED` remains false. Recommended: 100nF ceramic capacitor across IR receiver VCC/GND, close to the receiver.
+Transmitter circuit: GPIO 25 → 1kΩ → 2N2222A base; emitter → GND; collector → harvested LED cathode; LED anode → its existing series resistor → board 5V/VIN. Keep grounds common. The harvested LED's wavelength and electrical ratings are unknown; do not infer them from the old module. Verify transistor pinout, LED polarity, resistor, and 5V rail before powering. `IR_SEND_INVERTED` remains false. Recommended: 100nF ceramic capacitor across IR receiver VCC/GND, close to the receiver.
 
-Initially test 10–20 cm from the AC receiver. Some phone cameras filter IR; compare with the original remote or use a camera/detector known to see 940 nm. Only the AC's physical response verifies transmission.
+Initially test 10–20 cm from the AC receiver. Phone-camera visibility depends on the camera and the LED; failure to see a flash alone does not prove the LED is off. Only the AC's physical response verifies transmission.
 
 ## Future system architecture (not implemented)
 
