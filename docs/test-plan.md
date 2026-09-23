@@ -2,7 +2,7 @@
 
 Use the maintained sketch and wiring in the README. No physical tests below have been performed by this audit.
 
-For the reported no-response issue, first follow [IR troubleshooting](ir-troubleshooting.md). Firmware uses COOLIX ON/OFF labels captured twice from the original remote. Replay with the bare 940 nm LED and transistor driver remains unverified; see [wiring.md](wiring.md).
+For the reported no-response issue, first follow [IR troubleshooting](ir-troubleshooting.md). Firmware uses the latest remote-labeled ON COOLIX capture and OFF raw frame. Replay with the bare 940 nm LED and transistor driver remains unverified; see [wiring.md](wiring.md).
 
 1. Upload to the ESP32-WROOM-32 using the documented board/library versions. At 115200 baud, run `status` and check GPIOs 25/27/32/33/26. Boot must not transmit a command.
 2. Verify plausible DHT22 readings every two seconds and with `dht`. Disconnect DATA temporarily: a read failure should be reported and buttons/IR capture should continue. Reconnect and confirm recovery.

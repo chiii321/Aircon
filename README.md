@@ -96,7 +96,7 @@ The Stage 1 sketch is standalone: Wi-Fi, web service, and NTP are removed while 
 5. Open Serial Monitor at **115200 baud**, with **Newline**, **Carriage return**, or **Both NL & CR** enabled. Commands are processed only when a line ends.
 6. Run `status`, then `dht` to confirm sensor readings.
 7. Aim the AUX remote at the IR receiver and press its ON and OFF commands separately. Copy each printed source/raw capture into a documented capture record.
-8. The current ON/OFF commands use the original remote's confirmed COOLIX captures: ON `0xB21F38`, OFF `0xB27BE0`. Use `on` and `off` to test actual AC response. If neither works, follow [IR troubleshooting](docs/ir-troubleshooting.md), including the `capture` / `replay` diagnostic. The older ELECTRA_AC captures remain archived under `docs/ir-captures/`.
+8. Current commands follow the latest button-labeled remote captures: ON sends COOLIX `0xB21F48`; OFF replays the saved 199-timing raw frame because its decoder result was UNKNOWN. Use `on` and `off` to test actual AC response. If either fails, follow [IR troubleshooting](docs/ir-troubleshooting.md), including the `capture` / `replay` diagnostic. Earlier captures remain archived under `docs/ir-captures/`.
 
 Available serial commands: `status`, `dht`, `on`, `off`, `testir`, `capture`, and `replay`. `testir` sends repeated 38 kHz bursts for an optical emission check; a camera may filter them. `capture` records the next non-overflowed, non-repeat remote frame in RAM and pauses DHT reads for up to 60 seconds. `replay` transmits the captured raw timings at 38 kHz.
 
@@ -135,8 +135,8 @@ Pull with `git pull --ff-only` before editing/uploading. Use small branches/PRs 
 
 - [ ] ESP32 sketch uploaded
 - [ ] DHT22 produces reliable readings
-- [x] AUX ON COOLIX code captured twice (`0xB21F38`)
-- [x] AUX OFF COOLIX code captured twice (`0xB27BE0`)
+- [x] AUX ON COOLIX capture recorded (`0xB21F48`, 2026-09-23)
+- [x] AUX OFF raw capture stored (`UNKNOWN`, 199 timings, 2026-09-23)
 - [ ] Captures documented with settings and protocol/raw data
 - [ ] AUX ON replay verified
 - [ ] AUX OFF replay verified

@@ -88,16 +88,19 @@ struct IRsend {
 checks = r'''
 void sample(Button& b, bool level, uint32_t elapsed) {
   clockMs += elapsed; pins[b.pin] = level;
-  checkButton(b, "press", b.pin == ON_BUTTON_PIN ? kAuxOnCode : kAuxOffCode, "test");
+  checkButton(b, "press", b.pin == ON_BUTTON_PIN);
+}
+size_t actionCount(Button& b) {
+  return b.pin == ON_BUTTON_PIN ? irSender.sent.size() : irSender.rawSent.size();
 }
 void serial(const std::string& line) {
   Serial.input += line;
   while (Serial.available()) checkSerial();
 }
 int main() {
-  const uint64_t confirmedOn = 0xB21F38;
-  const uint64_t confirmedOff = 0xB27BE0;
-  assert(kAuxOnCode == confirmedOn && kAuxOffCode == confirmedOff);
+  const uint64_t confirmedOn = 0xB21F48;
+  const std::vector<uint16_t> confirmedOff(kAuxOffRaw, kAuxOffRaw + 199);
+  assert(kAuxOnCode == confirmedOn && confirmedOff.size() == 199);
   assert(IR_SEND_PIN == 25 && IR_RECEIVE_PIN == 27 && DHT_PIN == 32);
   assert(ON_BUTTON_PIN == 33 && OFF_BUTTON_PIN == 26 && !IR_SEND_INVERTED);
   for (bool& pin : pins) pin = HIGH;
@@ -108,34 +111,36 @@ int main() {
   assert(irSender.sent.empty());
   sample(onButton, HIGH, 0); sample(onButton, HIGH, 50);
   for (Button* b : {&onButton, &offButton}) {
-    const auto before = irSender.sent.size();
+    const auto before = actionCount(*b);
     sample(*b, LOW, 0); sample(*b, HIGH, 10); sample(*b, LOW, 10);
-    sample(*b, LOW, 49); assert(irSender.sent.size() == before);
-    sample(*b, LOW, 1); assert(irSender.sent.size() == before + 1);
-    assert(irSender.sent.back() == (b == &onButton ? confirmedOn : confirmedOff));
-    sample(*b, LOW, 5000); assert(irSender.sent.size() == before + 1);
+    sample(*b, LOW, 49); assert(actionCount(*b) == before);
+    sample(*b, LOW, 1); assert(actionCount(*b) == before + 1);
+    if (b == &onButton) assert(irSender.sent.back() == confirmedOn);
+    else assert(irSender.rawSent.back() == confirmedOff);
+    sample(*b, LOW, 5000); assert(actionCount(*b) == before + 1);
     sample(*b, HIGH, 0); sample(*b, LOW, 10); // release bounce cannot re-arm
-    sample(*b, LOW, 50); assert(irSender.sent.size() == before + 1);
+    sample(*b, LOW, 50); assert(actionCount(*b) == before + 1);
     sample(*b, HIGH, 0); sample(*b, HIGH, 50);
     sample(*b, LOW, 0); sample(*b, LOW, 50);
-    assert(irSender.sent.size() == before + 2);
+    assert(actionCount(*b) == before + 2);
     sample(*b, HIGH, 0); sample(*b, HIGH, 50);
   }
   clockMs = UINT32_MAX - 20;
-  sample(onButton, LOW, 0); const auto beforeWrap = irSender.sent.size();
-  sample(onButton, LOW, 49); assert(irSender.sent.size() == beforeWrap);
-  sample(onButton, LOW, 1); assert(irSender.sent.size() == beforeWrap + 1);
+  sample(onButton, LOW, 0); const auto beforeWrap = actionCount(onButton);
+  sample(onButton, LOW, 49); assert(actionCount(onButton) == beforeWrap);
+  sample(onButton, LOW, 1); assert(actionCount(onButton) == beforeWrap + 1);
   auto before = irSender.sent.size();
+  auto rawBefore = irSender.rawSent.size();
   serial(" ON \r\noff\non\roff\r\n");
-  assert(irSender.sent.size() == before + 4);
-  assert(irSender.sent[before] == confirmedOn && irSender.sent[before + 1] == confirmedOff);
-  assert(irSender.sent.back() == kAuxOffCode);
+  assert(irSender.sent.size() == before + 2 && irSender.rawSent.size() == rawBefore + 2);
+  assert(irSender.sent[before] == confirmedOn && irSender.sent[before + 1] == confirmedOn);
+  assert(irSender.rawSent.back() == confirmedOff);
   before = irSender.sent.size(); serial("o");
   sample(offButton, LOW, 0); sample(offButton, LOW, 50);
-  assert(irSender.sent.size() == before + 1); // incomplete input doesn't block buttons
-  serial("n\n"); assert(irSender.sent.size() == before + 2);
+  assert(irSender.sent.size() == before && irSender.rawSent.size() == rawBefore + 3); // incomplete input doesn't block buttons
+  serial("n\n"); assert(irSender.sent.size() == before + 1);
   before = irSender.sent.size(); serial(std::string(33, 'x') + "on\noff\n");
-  assert(irSender.sent.size() == before + 1);
+  assert(irSender.sent.size() == before && irSender.rawSent.size() == rawBefore + 4);
   assert(irReceiver.enabled);
   irReceiver.pending = true; irResults.overflow = true;
   clockMs += 2000; const int reads = dht.reads; loop();
@@ -143,7 +148,8 @@ int main() {
   assert(Serial.output.find("IR capture overflow") != std::string::npos);
   dht.humidity = NAN; serial("dht\nstatus\ntime\nunknown\n");
   assert(Serial.output.find("DHT22 read failed") != std::string::npos);
-  serial("replay\n"); assert(irSender.rawSent.empty());
+  const auto rawBeforeReplay = irSender.rawSent.size();
+  serial("replay\n"); assert(irSender.rawSent.size() == rawBeforeReplay);
   serial("capture\n"); const int pausedReads = dht.reads;
   serial("dht\non\n"); assert(dht.reads == pausedReads);
   irReceiver.pending = true; loop(); // overflow cannot replace capture
@@ -154,10 +160,10 @@ int main() {
   irReceiver.pending = true; loop(); assert(capturePending && capturedRaw == nullptr);
   allocationFails = false; irReceiver.pending = true; loop();
   assert(!capturePending && capturedRawLength == 3);
-  serial("replay\n"); assert(irSender.rawSent.size() == 1);
+  serial("replay\n"); assert(irSender.rawSent.size() == rawBeforeReplay + 1);
   assert(irSender.rawSent.back() == std::vector<uint16_t>({9000, 4500, 600}));
   assert(irReceiver.enabled);
-  serial("capture\nreplay\n"); assert(irSender.rawSent.size() == 1); // no stale replay
+  serial("capture\nreplay\n"); assert(irSender.rawSent.size() == rawBeforeReplay + 1); // no stale replay
   clockMs += 60000; loop(); assert(!capturePending && capturedRaw == nullptr);
   std::puts("PASS: mapping, buttons, Serial, capture/replay, timeout, RX and DHT flow");
 }

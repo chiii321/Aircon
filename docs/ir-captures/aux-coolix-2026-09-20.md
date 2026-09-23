@@ -9,4 +9,4 @@ The user captured these with the original remote and labeled each from the butto
 
 The original output showed DHT22 at 31.4 °C and 74.7% RH after the ON capture. The fresh captures showed about 31.3 °C and 74.5% RH. Each COOLIX frame had 199 raw timing entries; the source output was shared in the project conversation, but the CLI terminal wrapped the live array output, so raw timing arrays are not copied into this record. The decoded codes above are confirmed twice.
 
-The earlier 13-byte `ELECTRA_AC` records remain in this directory; the cause of the protocol difference is not yet established. Stage 1 firmware now sends these COOLIX codes for ON/OFF. Physical AC response remains to be tested.
+The earlier 13-byte `ELECTRA_AC` records remain in this directory; the cause of the protocol difference is not yet established. These captures were later superseded by new button-labeled captures on 2026-09-23; see [the newer record](aux-coolix-2026-09-23.md). Physical AC response remains to be tested.

@@ -49,12 +49,29 @@ Button onButton = {ON_BUTTON_PIN, HIGH, HIGH, 0};
 Button offButton = {OFF_BUTTON_PIN, HIGH, HIGH, 0};
 
 // Avoid Arduino generating this prototype before the Button type is defined.
-void checkButton(Button& button, const char* message, uint32_t code,
-                 const char* command);
+void checkButton(Button& button, const char* message, bool turnOn);
 
-// Confirmed twice from original remote button presses; physical ESP32 replay pending.
-constexpr uint32_t kAuxOnCode = 0xB21F38;
-constexpr uint32_t kAuxOffCode = 0xB27BE0;
+// Latest button-labeled captures from the original remote (2026-09-23).
+constexpr uint32_t kAuxOnCode = 0xB21F48;
+const uint16_t kAuxOffRaw[] = {
+    4578, 4192, 662, 1484, 756, 318, 754, 1392, 754, 1392, 726, 346, 754, 318,
+    758, 1388, 754, 318, 758, 314, 760, 1386, 726, 346, 730, 342, 760, 1384,
+    756, 1390, 754, 318, 732, 1414, 756, 316, 756, 1390, 760, 1386, 758, 1386,
+    756, 1390, 730, 342, 756, 1390, 760, 1386, 762, 1382, 764, 310, 762, 310,
+    758, 314, 764, 310, 766, 1380, 764, 310, 766, 306, 760, 1386, 766, 1380,
+    764, 1382, 760, 312, 762, 310, 768, 304, 764, 308, 770, 302, 768, 304,
+    770, 302, 764, 308, 774, 1372, 736, 1410, 768, 1376, 772, 1374, 774, 1372,
+    778, 4956, 4630, 4140, 554, 1590, 774, 298, 752, 1394, 768, 1378, 776, 296,
+    784, 288, 786, 1360, 778, 294, 778, 294, 786, 1362, 792, 280, 786, 288,
+    788, 1358, 780, 1366, 788, 284, 782, 1362, 790, 282, 782, 1362, 786, 1360,
+    788, 1358, 790, 1356, 792, 280, 784, 1362, 794, 1352, 788, 1358, 786, 286,
+    790, 282, 820, 252, 790, 282, 820, 1326, 790, 282, 792, 280, 820, 1326,
+    790, 1356, 786, 1360, 786, 286, 782, 290, 792, 280, 792, 282, 822, 250,
+    794, 278, 822, 250, 820, 252, 822, 1324, 810, 1336, 808, 1338, 800, 1346,
+    758, 1386, 708,
+};
+static_assert(sizeof(kAuxOffRaw) / sizeof(kAuxOffRaw[0]) == 199,
+              "AUX OFF capture must contain all 199 recorded timings.");
 
 void printDht() {
   if (capturePending) {
@@ -72,16 +89,27 @@ void printDht() {
   Serial.printf("DHT22: %.1f C, %.1f %% RH\n", temperatureC, humidity);
 }
 
-void sendAuxState(uint32_t code, const char* command) {
+void sendAuxState(bool turnOn) {
   if (capturePending) {
     Serial.println("Capture is armed; wait for the remote or the 60-second timeout before sending.");
     return;
   }
   irReceiver.disableIRIn();
-  irSender.sendCOOLIX(code);
+  if (turnOn) {
+    irSender.sendCOOLIX(kAuxOnCode);
+  } else {
+    irSender.sendRaw(kAuxOffRaw, sizeof(kAuxOffRaw) / sizeof(kAuxOffRaw[0]), kRawReplayKhz);
+  }
   delay(100);
   irReceiver.enableIRIn();
-  Serial.printf("Sent AUX %s COOLIX code 0x%06lX. AC response is not yet verified.\n", command, static_cast<unsigned long>(code));
+  if (turnOn) {
+    Serial.printf("Sent AUX ON COOLIX code 0x%06lX. AC response is not yet verified.\n",
+                  static_cast<unsigned long>(kAuxOnCode));
+  } else {
+    Serial.printf("Sent captured AUX OFF raw frame (%u timings at %u kHz). AC response is not yet verified.\n",
+                  static_cast<unsigned int>(sizeof(kAuxOffRaw) / sizeof(kAuxOffRaw[0])),
+                  kRawReplayKhz);
+  }
 }
 
 void testIrLed() {
@@ -122,8 +150,7 @@ void replayCaptured() {
                 capturedRawLength, kRawReplayKhz);
 }
 
-void checkButton(Button& button, const char* message, uint32_t code,
-                 const char* command) {
+void checkButton(Button& button, const char* message, bool turnOn) {
   const bool reading = digitalRead(button.pin);
 
   if (reading != button.lastReading) {
@@ -136,7 +163,7 @@ void checkButton(Button& button, const char* message, uint32_t code,
 
     if (button.stableState == LOW) {
       Serial.println(message);
-      sendAuxState(code, command);
+      sendAuxState(turnOn);
     }
   }
 
@@ -149,8 +176,8 @@ void printStatus() {
                 DHT_PIN, IR_RECEIVE_PIN, IR_SEND_PIN);
   Serial.printf("ON button GPIO: %d | OFF button GPIO: %d (active LOW, 50 ms debounce)\n",
                 ON_BUTTON_PIN, OFF_BUTTON_PIN);
-  Serial.println("AUX COOLIX ON/OFF codes: configured (AC response not yet verified)");
-  Serial.println("ON/OFF labels confirmed from original remote presses.");
+  Serial.println("AUX ON: COOLIX 0xB21F48 | OFF: captured raw frame (AC response not yet verified)");
+  Serial.println("ON/OFF labels follow the original remote buttons pressed during capture.");
   Serial.printf("IR TX inverted: %s | raw replay carrier: %u kHz | captured timings: %u\n",
                 IR_SEND_INVERTED ? "yes" : "no", kRawReplayKhz, capturedRawLength);
   Serial.printf("Build: %s %s\n", __DATE__, __TIME__);
@@ -163,9 +190,9 @@ void handleCommand(const String& command) {
   } else if (command == "dht") {
     printDht();
   } else if (command == "on") {
-    sendAuxState(kAuxOnCode, "ON");
+    sendAuxState(true);
   } else if (command == "off") {
-    sendAuxState(kAuxOffCode, "OFF");
+    sendAuxState(false);
   } else if (command == "testir") {
     testIrLed();
   } else if (command == "capture") {
@@ -246,8 +273,8 @@ void loop() {
 
   checkSerial();
 
-  checkButton(onButton, "Physical ON button pressed.", kAuxOnCode, "ON");
-  checkButton(offButton, "Physical OFF button pressed.", kAuxOffCode, "OFF");
+  checkButton(onButton, "Physical ON button pressed.", true);
+  checkButton(offButton, "Physical OFF button pressed.", false);
 
   if (!capturePending && millis() - lastDhtReadMs >= kDhtIntervalMs) {
     lastDhtReadMs = millis();
