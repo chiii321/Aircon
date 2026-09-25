@@ -1,8 +1,8 @@
 # Live controller setup
 
-Website: https://aircon-control-gwen.pages.dev/
+Website: https://aircon-bay.vercel.app/
 
-This Cloudflare Pages project currently uses direct uploads. Repository pushes alone will not publish website changes; redeploy the `web/` directory after editing it.
+The Vercel production project serves the `web/` directory. The GitHub repository has the site source and `vercel.json`; the current Vercel production version was deployed directly from `web/`. The earlier Cloudflare Pages deployment remains at https://aircon-control-gwen.pages.dev/ and may lag behind.
 
 The current firmware ID is `01`. The database has slots `01` through `11`; only `01` has a provisioned credential. A slot is **online** only after its ESP32 reports a heartbeat within the past 30 seconds. Do not mistake a queued command or an IR-send acknowledgement for a verified physical AC state.
 
