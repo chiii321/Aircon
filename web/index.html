@@ -1,14 +1,22 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AirCon IoT</title>
-  </head>
-  <body>
-    <main>
-      <h1>AirCon IoT</h1>
-      <p>Stage 1 hardware testing is in progress.</p>
-    </main>
-  </body>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#eef5f6">
+  <title>Aircon · Welcome</title>
+  <link rel="stylesheet" href="auth.css">
+</head>
+<body class="welcome-page">
+  <header class="public-header"><a class="public-brand" href="index.html"><span class="brand-symbol">✳</span> aircon<span class="brand-dot">.</span></a><span class="header-caption">YOUR SPACE, AT EASE</span></header>
+  <main class="welcome-main">
+    <div class="intro"><span class="kicker"><span class="pulse"></span> PERSONAL CLIMATE CONTROL</span><h1>Comfort starts <em>here.</em></h1><p>One calm place for your air conditioners. View your ESP32 controllers, check live readings, and set a daily rhythm that fits you.</p></div>
+    <div class="choice-grid" aria-label="Account options">
+      <a class="choice-card" href="register.html"><span class="choice-icon" aria-hidden="true">＋</span><span class="choice-label">NEW HERE</span><strong>Create an account</strong><span class="choice-copy">Set up your secure space and get ready to connect your devices.</span><span class="choice-action">Get started <span aria-hidden="true">↗</span></span></a>
+      <a class="choice-card" href="login.html"><span class="choice-icon" aria-hidden="true">→</span><span class="choice-label">WELCOME BACK</span><strong>Sign in</strong><span class="choice-copy">Pick up where you left off and open your control center.</span><span class="choice-action">Go to sign in <span aria-hidden="true">↗</span></span></a>
+    </div>
+    <p class="welcome-note">Your controls appear after you sign in. Device status comes from actual controller reports.</p>
+  </main>
+  <footer class="public-footer"><span>Designed for your everyday comfort</span><span>11 controller slots · Philippine time</span></footer>
+</body>
 </html>

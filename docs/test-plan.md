@@ -14,3 +14,6 @@ For the reported no-response issue, first follow [IR troubleshooting](ir-trouble
 8. Disconnect the laptop and boot from a USB power bank. Verify both buttons physically control the AC. Restart with a button held: no transmission until release and a fresh press. Test idle operation for the intended demonstration duration and confirm the power bank remains on.
 
 Record date, hardware versions, pass/fail, and observed behavior. Keep replay marked unverified until the real AC responds correctly and repeatedly.
+# Historical Stage 1 checklist
+
+The button checks below apply to the earlier standalone prototype. The current Wi-Fi sketch no longer reads physical buttons. Follow [live setup](live-setup.md) for connection and dashboard verification.

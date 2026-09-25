@@ -17,8 +17,7 @@ ESP32-WROOM-32, 30-pin development board
 | DHT22 3-pin module | DATA / OUT | GPIO 32 |
 | DHT22 3-pin module | VCC | 3.3V |
 | DHT22 3-pin module | GND | GND |
-| ON push button | Switched terminals | GPIO 33 and GND |
-| OFF push button | Switched terminals | GPIO 26 and GND |
+| Physical ON/OFF buttons | Removed | GPIO 33 and 26 unused |
 
 ## Simple Layout
 
@@ -41,13 +40,12 @@ GPIO 25 ---- 1kΩ ---- 2N2222 BASE
                      COLLECTOR ---- harvested IR LED cathode (-)
 5V/VIN ----- 100Ω ------------------ harvested IR LED anode (+)
 
-GPIO 33 -------- ON button (normally open) --- GND
-GPIO 26 -------- OFF button (normally open) -- GND
+GPIO 33, GPIO 26 --- unused (buttons removed)
 ```
 
 ## Notes
 
-- Buttons use internal pull-ups and are active LOW. See [docs/wiring.md](docs/wiring.md) for switch-terminal and USB power-bank details.
+- The current sketch no longer reads physical buttons. See [docs/live-setup.md](docs/live-setup.md) for Wi-Fi and website setup.
 
 - Start the DHT22 and IR receiver at 3.3V.
 - Current emitter: temporary harvested IR LED from previous transmitter module. The module board is not used; LED wavelength, current rating, and polarity are unconfirmed. A bare 5mm 940 nm LED is planned, not yet available.

@@ -1,0 +1,1 @@
+insert into public.device_tokens(device_id, token_sha256) values ('01', '8b7261d6307f5f4c3f6e92e14811691031737c0af0fdeaaf94b08e2958b155c3') on conflict (device_id) do update set token_sha256 = excluded.token_sha256; update public.devices set provisioned = true where id = '01';

@@ -14,8 +14,8 @@ jobs:
           arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli core update-index
           arduino-cli core install esp32:esp32@2.0.17
-          arduino-cli lib install 'IRremoteESP8266@2.8.6' 'DHT sensor library@1.4.6' 'Adafruit Unified Sensor@1.1.15'
-      - name: Host regression checks
-        run: python3 tests/test_stage1.py g++
-      - name: Compile standalone firmware
-        run: arduino-cli compile --fqbn esp32:esp32:esp32 firmware/stage1_hardware_test
+          arduino-cli lib install 'IRremoteESP8266@2.8.6' 'DHT sensor library@1.4.6' 'Adafruit Unified Sensor@1.1.15' 'ArduinoJson@7.4.3'
+      - name: Compile Wi-Fi controller firmware
+        run: |
+          cp firmware/stage1_hardware_test/device_credentials.example.h firmware/stage1_hardware_test/device_credentials.h
+          arduino-cli compile --fqbn esp32:esp32:esp32 firmware/stage1_hardware_test

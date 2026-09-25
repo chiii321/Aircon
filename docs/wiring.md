@@ -14,10 +14,7 @@ Use the listed connections for the current ESP32-WROOM-32 30-pin board hardware 
 | DHT22 | DATA | ESP32 GPIO 32 |
 | DHT22 | VCC | ESP32 3.3V |
 | DHT22 | GND | ESP32 GND |
-| ON push button | One terminal | ESP32 GPIO 33 |
-| ON push button | Other terminal | ESP32 GND |
-| OFF push button | One terminal | ESP32 GPIO 26 |
-| OFF push button | Other terminal | ESP32 GND |
+| Physical ON/OFF buttons | Removed from prototype | Not connected |
 
 ## IR transmitter
 
@@ -39,7 +36,6 @@ GPIO HIGH drives the transistor on, so retain `IR_SEND_INVERTED=false`. Recommen
 - The current test AC is an AUX DC inverter. Its original remote is needed to capture genuine commands.
 - Verify LED polarity and the actual series resistor before powering. The harvested LED's wavelength and ratings are unknown. Phone cameras vary in IR sensitivity, so camera visibility is not a definitive emission test. Initially test 10–20 cm from the AC receiver; physical AC response is required to verify transmission and range.
 - DHT22 modules vary. This wiring reference does not assume an onboard or external DATA pull-up resistor; confirm the requirement for the specific module if readings fail.
-- The buttons use the ESP32's internal pull-up resistors. Each button is active LOW: connect it only between its GPIO and GND; do not connect it to 3.3V.
 - On four-leg tactile switches, use terminals that are disconnected when released and connected when pressed; two legs may already be joined internally. Check continuity before wiring.
 - Power the development board via its USB connector for power-bank operation. Do not connect USB 5V to the 3V3 rail or a GPIO. Verify the power bank does not shut down automatically at idle.
-- The sketch samples buttons with 50 ms debounce and sends once per press. Release a button held during boot before using it. See [test-plan.md](test-plan.md) for verification.
+- The current sketch controls the AC through Serial, daily schedules, or authenticated website commands. See [live setup](live-setup.md) for Wi-Fi provisioning.

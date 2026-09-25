@@ -1,4 +1,4 @@
--- Draft only: no database is configured or deployed in Stage 1.
+-- Historical draft. The deployed schema is tracked in ../supabase/migrations/.
 -- Future tables may include:
 --   devices       -- registered ESP32 devices and configuration metadata
 --   schedules     -- desired local schedule definitions

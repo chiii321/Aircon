@@ -1,5 +1,7 @@
 # Website handoff
 
+> Updated 2026-09-25: The live-control implementation and deployment now live in [live-setup.md](live-setup.md). The status and suggested sequence below describe the state before that work. Hardware connection and physical AC response are still unverified.
+
 This is the starting point for a new session building the air-conditioning control website. Read [README.md](../README.md) for the current hardware status and [CODEX_HANDOFF_AC_IOT.md](../CODEX_HANDOFF_AC_IOT.md) for the broader product requirements. Some older handoff milestones are stale; the README and dated capture records reflect the latest recorded hardware work.
 
 ## Goal and intended flow

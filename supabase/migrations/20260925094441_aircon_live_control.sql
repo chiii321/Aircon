@@ -1,0 +1,1 @@
+-- Initial connectivity check; schema is in the next migration.

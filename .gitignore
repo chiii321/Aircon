@@ -30,3 +30,8 @@ secrets.h
 credentials.h
 wifi_credentials.h
 service-account*.json
+
+# Local device provisioning
+firmware/stage1_hardware_test/device_credentials.h
+supabase/*.local
+.vercel/
