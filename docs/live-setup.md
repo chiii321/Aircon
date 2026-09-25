@@ -1,6 +1,6 @@
 # Live controller setup
 
-Website: https://aircon-bay.vercel.app/
+Website: https://inuvair.vercel.app/ (alias: https://aircon-bay.vercel.app/)
 
 The Vercel production project serves the `web/` directory. The GitHub repository has the site source and `vercel.json`; the current Vercel production version was deployed directly from `web/`. The earlier Cloudflare Pages deployment remains at https://aircon-control-gwen.pages.dev/ and may lag behind.
 
