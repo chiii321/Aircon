@@ -1,6 +1,6 @@
 /*
   Stage 1 hardware test for ESP32-WROOM-32.
-  AUX COOLIX control and raw replay diagnostics. Physical replay unverified.
+  ELECTRA_AC raw control and replay diagnostics. Physical response unverified.
   Current transmitter: harvested IR LED from the previous 3-pin module.
 */
 
@@ -61,27 +61,58 @@ struct DailyWindow { uint16_t onMinute; uint16_t offMinute; };
 DailyWindow schedules[kMaxSchedules];
 uint8_t scheduleCount = 0;
 
-// Latest button-labeled captures from the original remote (2026-09-23).
-constexpr uint32_t kAuxOnCode = 0xB21F48;
-const uint16_t kAuxOffRaw[] = {
-    4578, 4192, 662, 1484, 756, 318, 754, 1392, 754, 1392, 726, 346, 754, 318,
-    758, 1388, 754, 318, 758, 314, 760, 1386, 726, 346, 730, 342, 760, 1384,
-    756, 1390, 754, 318, 732, 1414, 756, 316, 756, 1390, 760, 1386, 758, 1386,
-    756, 1390, 730, 342, 756, 1390, 760, 1386, 762, 1382, 764, 310, 762, 310,
-    758, 314, 764, 310, 766, 1380, 764, 310, 766, 306, 760, 1386, 766, 1380,
-    764, 1382, 760, 312, 762, 310, 768, 304, 764, 308, 770, 302, 768, 304,
-    770, 302, 764, 308, 774, 1372, 736, 1410, 768, 1376, 772, 1374, 774, 1372,
-    778, 4956, 4630, 4140, 554, 1590, 774, 298, 752, 1394, 768, 1378, 776, 296,
-    784, 288, 786, 1360, 778, 294, 778, 294, 786, 1362, 792, 280, 786, 288,
-    788, 1358, 780, 1366, 788, 284, 782, 1362, 790, 282, 782, 1362, 786, 1360,
-    788, 1358, 790, 1356, 792, 280, 784, 1362, 794, 1352, 788, 1358, 786, 286,
-    790, 282, 820, 252, 790, 282, 820, 1326, 790, 282, 792, 280, 820, 1326,
-    790, 1356, 786, 1360, 786, 286, 782, 290, 792, 280, 792, 282, 822, 250,
-    794, 278, 822, 250, 820, 252, 822, 1324, 810, 1336, 808, 1338, 800, 1346,
-    758, 1386, 708,
+// Latest ELECTRA_AC ON/OFF captures supplied by the user (104-bit frames, 211 timings each).
+// Raw replay is used so the captured timing pattern is preserved exactly.
+const uint16_t kElectraOnRaw[] = {
+    9098, 4410, 644, 1604, 644, 1602, 646, 464, 644, 472, 638, 494, 616, 466, 644, 1602,
+    648, 1602, 644, 466, 642, 466, 644, 466, 644, 1604, 644, 468, 642, 468, 642, 468,
+    644, 1602, 646, 466, 642, 466, 644, 466, 644, 466, 644, 466, 644, 1604, 644, 1604,
+    644, 1602, 646, 466, 644, 468, 642, 466, 644, 466, 644, 464, 644, 466, 644, 466,
+    642, 468, 644, 466, 642, 466, 644, 468, 642, 466, 644, 468, 642, 468, 642, 1604,
+    644, 468, 640, 468, 644, 466, 642, 466, 642, 466, 642, 468, 644, 468, 642, 468,
+    642, 468, 642, 466, 644, 468, 642, 468, 642, 468, 644, 466, 642, 1604, 644, 466,
+    642, 466, 644, 466, 642, 468, 642, 466, 644, 468, 642, 466, 642, 468, 642, 468,
+    642, 466, 642, 468, 642, 468, 640, 468, 644, 466, 642, 468, 642, 470, 640, 468,
+    642, 468, 642, 468, 642, 468, 642, 468, 642, 468, 644, 466, 642, 1604, 642, 468,
+    642, 468, 642, 468, 640, 470, 642, 468, 640, 470, 640, 470, 640, 470, 640, 470,
+    640, 470, 640, 1606, 640, 470, 640, 1606, 642, 468, 640, 470, 616, 494, 640, 470,
+    616, 494, 616, 496, 616, 494, 616, 494, 614, 494, 616, 1632, 616, 1632, 616, 492,
+    616, 1632, 618
 };
-static_assert(sizeof(kAuxOffRaw) / sizeof(kAuxOffRaw[0]) == 199,
-              "AUX OFF capture must contain all 199 recorded timings.");
+
+const uint16_t kElectraOffRaw[] = {
+    9096, 4412, 642, 1604, 642, 1606, 644, 468, 642, 468, 640, 468, 642, 470, 640, 1606,
+    642, 1604, 644, 468, 640, 470, 638, 470, 640, 1608, 640, 468, 642, 468, 640, 470,
+    638, 1608, 642, 470, 638, 468, 642, 470, 638, 470, 640, 468, 640, 1608, 640, 1606,
+    642, 1606, 640, 470, 640, 470, 638, 472, 640, 470, 638, 470, 640, 470, 640, 470,
+    638, 470, 640, 468, 640, 470, 638, 470, 640, 470, 638, 470, 642, 468, 640, 1608,
+    638, 472, 640, 470, 640, 468, 640, 470, 642, 468, 640, 470, 640, 468, 640, 468,
+    640, 470, 640, 470, 640, 468, 640, 470, 640, 470, 638, 470, 640, 1606, 640, 470,
+    640, 470, 640, 468, 642, 468, 642, 468, 640, 470, 640, 470, 640, 470, 640, 468,
+    640, 470, 642, 468, 640, 468, 640, 470, 640, 470, 640, 470, 640, 470, 640, 470,
+    640, 470, 640, 468, 640, 470, 640, 470, 640, 468, 642, 468, 640, 468, 642, 470,
+    640, 470, 640, 468, 640, 472, 640, 470, 638, 470, 640, 468, 640, 470, 640, 468,
+    640, 470, 640, 1608, 640, 470, 638, 1608, 638, 472, 638, 470, 640, 470, 640, 470,
+    640, 470, 638, 470, 640, 470, 638, 472, 614, 496, 640, 1606, 614, 496, 638, 472,
+    638, 1608, 638
+};
+
+const uint8_t kElectraOnState[13] = {
+    0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20, 0x00, 0x00, 0x20, 0x00, 0x05, 0xB0
+};
+
+const uint8_t kElectraOffState[13] = {
+    0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x05, 0x90
+};
+
+static_assert(sizeof(kElectraOnRaw) / sizeof(kElectraOnRaw[0]) == 211,
+              "ELECTRA ON capture must contain all 211 recorded timings.");
+static_assert(sizeof(kElectraOffRaw) / sizeof(kElectraOffRaw[0]) == 211,
+              "ELECTRA OFF capture must contain all 211 recorded timings.");
+static_assert(sizeof(kElectraOnState) / sizeof(kElectraOnState[0]) == 13,
+              "ELECTRA ON state must contain 13 bytes.");
+static_assert(sizeof(kElectraOffState) / sizeof(kElectraOffState[0]) == 13,
+              "ELECTRA OFF state must contain 13 bytes.");
 
 void printDht() {
   if (capturePending) {
@@ -110,23 +141,21 @@ bool sendAuxState(bool turnOn) {
   }
   irReceiver.disableIRIn();
   if (turnOn) {
-    irSender.sendCOOLIX(kAuxOnCode);
+    irSender.sendRaw(kElectraOnRaw, sizeof(kElectraOnRaw) / sizeof(kElectraOnRaw[0]), kRawReplayKhz);
   } else {
-    irSender.sendRaw(kAuxOffRaw, sizeof(kAuxOffRaw) / sizeof(kAuxOffRaw[0]), kRawReplayKhz);
+    irSender.sendRaw(kElectraOffRaw, sizeof(kElectraOffRaw) / sizeof(kElectraOffRaw[0]), kRawReplayKhz);
   }
   delay(100);
   irReceiver.enableIRIn();
   if (turnOn) {
-    Serial.printf("Sent AUX ON COOLIX code 0x%06lX. AC response is not yet verified.\n",
-                  static_cast<unsigned long>(kAuxOnCode));
+    Serial.printf("Sent captured ELECTRA_AC ON raw frame (%u timings at %u kHz). AC response is not yet verified.\n",
+                  static_cast<unsigned int>(sizeof(kElectraOnRaw) / sizeof(kElectraOnRaw[0])), kRawReplayKhz);
   } else {
-    Serial.printf("Sent captured AUX OFF raw frame (%u timings at %u kHz). AC response is not yet verified.\n",
-                  static_cast<unsigned int>(sizeof(kAuxOffRaw) / sizeof(kAuxOffRaw[0])),
-                  kRawReplayKhz);
+    Serial.printf("Sent captured ELECTRA_AC OFF raw frame (%u timings at %u kHz). AC response is not yet verified.\n",
+                  static_cast<unsigned int>(sizeof(kElectraOffRaw) / sizeof(kElectraOffRaw[0])), kRawReplayKhz);
   }
   return true;
 }
-
 void testIrLed() {
   if (capturePending) {
     Serial.println("Capture is armed; wait for the remote or the 60-second timeout before sending.");
@@ -286,20 +315,20 @@ void runDailySchedule() {
 }
 
 void printStatus() {
-  Serial.println("Stage 1 hardware test");
+  Serial.println("Stage 1 website-connected hardware test");
   Serial.printf("Device ID: %s\n", kDeviceId);
   Serial.printf("DHT22 GPIO: %d | IR receiver GPIO: %d | IR transmitter GPIO: %d\n",
                 DHT_PIN, IR_RECEIVE_PIN, IR_SEND_PIN);
   Serial.printf("Wi-Fi: %s | cached schedule windows: %u\n",
                 WiFi.status() == WL_CONNECTED ? "connected" : "offline", scheduleCount);
-  Serial.println("AUX ON: COOLIX 0xB21F48 | OFF: captured raw frame (AC response not yet verified)");
-  Serial.println("ON/OFF labels follow the original remote buttons pressed during capture.");
+  Serial.println("ELECTRA_AC ON/OFF: captured raw frames (104-bit, 211 timings each; AC response not yet verified)");
+  Serial.println("ON state:  C388E0004000200000200005B0");
+  Serial.println("OFF state: C388E000400020000000000590");
   Serial.printf("IR TX inverted: %s | raw replay carrier: %u kHz | captured timings: %u\n",
                 IR_SEND_INVERTED ? "yes" : "no", kRawReplayKhz, capturedRawLength);
   Serial.printf("Build: %s %s\n", __DATE__, __TIME__);
   Serial.println("Cloud polling enabled. IR transmission is not proof of physical AC state.");
 }
-
 void handleCommand(const String& command) {
   if (command == "status") {
     printStatus();
@@ -341,7 +370,7 @@ void setup() {
 void checkSerial() {
   static String command;
   static bool overflow = false;
-  // Bound each pass so continuous serial traffic cannot starve button polling.
+  // Bound each pass so continuous serial traffic cannot starve cloud polling.
   for (uint8_t count = 0; count < 32 && Serial.available(); ++count) {
     const char character = Serial.read();
     if (character == '\n' || character == '\r') {
