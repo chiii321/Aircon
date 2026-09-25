@@ -5,3 +5,4 @@
 - Do not delete existing files unless explicitly requested.
 - Verify work where practical and state anything that remains unverified.
 - For multi-step work, define a concise plan and a concrete check for completion.
+- For website work, read `docs/website-handoff.md` before editing.

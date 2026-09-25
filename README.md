@@ -38,6 +38,8 @@ Initially test 10–20 cm from the AC receiver. Phone-camera visibility depends 
 
 ## Future system architecture (not implemented)
 
+For the next website session, start with [the website handoff](docs/website-handoff.md). It records the verified GitHub, Supabase, and Cloudflare setup and the remaining device-control work.
+
 ```text
 Website
   ↓
