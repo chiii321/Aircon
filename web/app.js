@@ -325,6 +325,30 @@ function attachAccessManager() {
     }
     button.blur()
   }
+  const emailButton = document.createElement('button')
+  emailButton.type = 'button'
+  emailButton.className = 'primary'
+  emailButton.textContent = 'Email registration link'
+  inviteForm.querySelector('.invite-controls').append(emailButton)
+  emailButton.onclick = async () => {
+    if (!inviteForm.reportValidity()) return
+    emailButton.disabled = true
+    setMessage('access-status', 'Sending invitation…')
+    try {
+      const { data, error } = await api.functions.invoke('send-registration-link', { body: { email: document.getElementById('invite-email').value.trim().toLowerCase() } })
+      let message = data?.error
+      if (error?.context) {
+        try { message = (await error.context.json()).error } catch { /* Keep the fallback message. */ }
+      }
+      if (error || message) throw new Error(message || 'Could not send the invitation. Try again later.')
+      if (!data?.accepted) throw new Error('The email service did not confirm this invitation.')
+      setMessage('access-status', 'Invitation accepted by the email service. Ask the recipient to check their inbox and spam folder. Admin approval is still required.')
+    } catch (error) {
+      setMessage('access-status', error.message, true)
+    } finally {
+      emailButton.disabled = false
+    }
+  }
   document.querySelectorAll('.approve-user').forEach(button => button.onclick = async () => {
     button.disabled = true
     const { error } = await api.rpc('admin_set_user_authorized', { target_user_id: button.dataset.userId, approved: true })
