@@ -121,6 +121,16 @@ export function createClient() {
             await check('Overview focused card '+colorScheme+' '+width);
             await action.evaluate(el=>el.blur());
           }
+          if(route==='devices') {
+            const row=page.locator('.device-table tr[data-device]').first();
+            await row.hover();
+            await check('Devices hovered row '+colorScheme+' '+width);
+            assert.equal(await row.evaluate(el=>getComputedStyle(el).backgroundColor),await page.locator('.device-table th').first().evaluate(el=>getComputedStyle(el).backgroundColor));
+            await row.focus();
+            await page.mouse.move(0,0);
+            await check('Devices focused row '+colorScheme+' '+width);
+            await row.evaluate(el=>el.blur());
+          }
           if(process.env.SHOTS_DIR) await page.screenshot({path:process.env.SHOTS_DIR+'/'+route.replace('/','-')+'-'+colorScheme+'-'+width+'.png',fullPage:true});
         }
       }

@@ -499,12 +499,12 @@ button {
   cursor: pointer;
 }
 
-.device-table tr[data-device]:hover {
-  background: #f5faf9;
+.device-table tr[data-device]:hover, .device-table tr[data-device]:focus-visible {
+  background: var(--soft);
 }
 
 .device-table tr:focus-visible {
-  outline: 3px solid #55cbb6;
+  outline: 3px solid var(--accent);
   outline-offset: -3px;
 }
 
@@ -514,8 +514,8 @@ button {
 
 .device-id {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  background: #eaf3f3;
-  color: #205e61;
+  background: var(--soft);
+  color: var(--ink);
   padding: 4px 7px;
   border-radius: 5px;
   font-weight: 800;
