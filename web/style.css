@@ -276,6 +276,12 @@ button {
 .alert-detail strong, .alert-detail small { display:block; }
 .alert-detail small { margin-top:4px; color:#8995a6; font-size:10px; }
 .alert-detail .badge { margin-left:5px; vertical-align:middle; }
+.schedule-confirmation { padding:13px 2px 4px; border-top:1px solid #edf0f4; color:#536783; font-size:11px; }
+.schedule-confirmation > div:first-child strong, .schedule-held strong { color:#183b6c; font-size:13px; }
+.schedule-confirmation p, .schedule-held p { margin:6px 0; color:#687991; }
+.schedule-confirmation small { color:#8995a6; }
+.confirmation-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:11px; }
+.schedule-held { padding:16px 19px; }
 .settings-card > .muted { margin:2px 0 14px; }
 .settings-field { display:block; margin-bottom:5px; color:#697a94; font-size:10px; font-weight:800; }
 .settings-select { min-width:220px; padding:9px 11px; border:1px solid #d6e0ed; border-radius:8px; color:#233f69; background:white; font:inherit; font-size:12px; }
