@@ -125,7 +125,7 @@ function renderAccessManager() {
     const assignment = approved ? `<label class="settings-field" for="assigned-devices-${esc(user.id)}">Assigned devices</label><select id="assigned-devices-${esc(user.id)}" class="settings-select access-device-select" multiple size="4">${devices.map(d => `<option value="${esc(d.id)}" ${selected.has(d.id) ? 'selected' : ''}>${esc(d.name)} · ${esc(d.id)}</option>`).join('')}</select><small class="access-help">A controller can be assigned to one authorized user at a time.</small><div class="access-actions"><button class="secondary save-user-devices" type="button" data-user-id="${esc(user.id)}">Save assignments</button><button class="danger revoke-user" type="button" data-user-id="${esc(user.id)}">Revoke approval</button></div>` : `<p class="muted">This account cannot access devices until approved.</p><button class="primary approve-user" type="button" data-user-id="${esc(user.id)}">Approve user</button>`
     return `<article class="user-access-card"><div class="panel-top"><div><strong>${esc(user.email)}</strong><small class="monitor-id">Account access</small></div><span class="badge ${approved ? 'online' : 'offline'}">${approved ? 'Authorized' : 'Pending'}</span></div>${assignment}</article>`
   }).join('')
-  return `<section class="card access-manager"><div class="card-heading"><div><h2>Authorized users</h2></div><small>${accessUsers.filter(user => user.role === 'authorized').length} approved</small></div><p class="muted">Review signed-up accounts, approve each person, and choose which devices they can see on Overview and Notifications.</p><div id="access-status" class="status-text" role="status" aria-live="polite"></div><div class="user-access-list">${rows || '<p class="alert-clear">No other accounts have signed up yet.</p>'}</div></section>`
+  return `<section class="card access-manager"><div class="card-heading"><div><h2>Invite and manage users</h2></div><small>${accessUsers.filter(user => user.role === 'authorized').length} approved</small></div><p class="muted">Create a personal signup link for an email address. After email confirmation, approve the account and assign the devices it can access.</p><form id="invite-form" class="invite-form"><label class="settings-field" for="invite-email">Invitee email address</label><div class="invite-controls"><input id="invite-email" type="email" autocomplete="email" placeholder="person@example.com" required><button class="secondary" type="submit">Create invite link</button></div></form><div id="invite-result" class="invite-result" hidden><label class="settings-field" for="invite-link">Share this registration link</label><div class="invite-controls"><input id="invite-link" type="url" readonly><button id="copy-invite" class="secondary" type="button">Copy link</button></div></div><div id="access-status" class="status-text" role="status" aria-live="polite"></div><div class="user-access-list">${rows || '<p class="alert-clear">No other accounts have signed up yet.</p>'}</div></section>`
 }
 
 function renderPendingApproval() {
@@ -180,6 +180,28 @@ function attachDetail(id) {
 }
 
 function attachAccessManager() {
+  const inviteForm = document.getElementById('invite-form')
+  inviteForm.onsubmit = event => {
+    event.preventDefault()
+    const email = document.getElementById('invite-email').value.trim().toLowerCase()
+    const link = new URL('register.html', location.href)
+    link.searchParams.set('email', email)
+    const result = document.getElementById('invite-result')
+    document.getElementById('invite-link').value = link.href
+    result.hidden = false
+    setMessage('access-status', 'Link created with the email prefilled. Share it directly with the intended recipient; it is not an expiring or revocable invitation. The recipient still needs email confirmation and your approval.')
+  }
+  document.getElementById('copy-invite').onclick = async () => {
+    const button = document.getElementById('copy-invite')
+    try {
+      await navigator.clipboard.writeText(document.getElementById('invite-link').value)
+      setMessage('access-status', 'Invite link copied.')
+    } catch {
+      setMessage('access-status', 'Copy was blocked by the browser. Select and copy the link above.', true)
+    }
+    button.blur()
+  }
+
   document.querySelectorAll('.approve-user').forEach(button => button.onclick = async () => {
     button.disabled = true
     const { error } = await api.rpc('admin_set_user_authorized', { target_user_id: button.dataset.userId, approved: true })

@@ -5,6 +5,13 @@ const mode = document.body.dataset.authMode
 const form = document.getElementById('auth-form')
 const status = document.getElementById('auth-status')
 const submit = form.querySelector('button[type="submit"]')
+const emailInput = form.elements.email
+const invitedEmail = mode === 'register' ? new URLSearchParams(location.search).get('email')?.trim() : ''
+if (mode === 'register' && invitedEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitedEmail)) {
+  emailInput.value = invitedEmail
+  emailInput.readOnly = true
+  emailInput.setAttribute('aria-readonly', 'true')
+}
 
 function authErrorMessage(error) {
   const message = String(error?.message || '')
@@ -23,7 +30,7 @@ form.addEventListener('submit', async event => {
   submit.disabled = true
   status.classList.remove('error')
   status.textContent = mode === 'register' ? 'Creating your account…' : 'Signing you in…'
-  const email = form.elements.email.value.trim()
+  const email = emailInput.value.trim()
   const password = form.elements.password.value
   try {
     const result = mode === 'register'
