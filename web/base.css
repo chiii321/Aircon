@@ -1,6 +1,7 @@
 @font-face { font-family: Mokoto; src: url("assets/Mokoto.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: Nunito; src: url("assets/nunito-latin.woff2") format("woff2"); font-style: normal; font-weight: 400 700; font-display: swap; }
 :root {
-  color-scheme: light; font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  color-scheme: light; font-family: Nunito, "Segoe UI", system-ui, sans-serif;
   color: var(--ink); background: var(--bg);
   --bg:#f5f8fd; --surface:#fff; --soft:#edf3fb; --ink:#243955; --muted:#576b86;
   --line:#dce5f1; --accent:#365f9d; --accent-hover:#2c5088; --accent-soft:#e6effc;
@@ -45,6 +46,16 @@ input::placeholder { color:var(--muted); opacity:1; }
 }
 .theme-toggle { min-height:44px; padding:8px 12px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--ink); font-size:13px; white-space:nowrap; }
 .theme-toggle:hover { background:var(--soft); }
+.theme-picker { position:relative; }
+.theme-menu { position:absolute; right:0; top:calc(100% + 8px); z-index:3; width:168px; padding:6px; border:1px solid var(--line); border-radius:13px; background:var(--surface); box-shadow:0 6px 20px var(--shadow); }
+.theme-menu button { display:flex; align-items:center; gap:12px; width:100%; min-height:44px; padding:10px 8px; border:0; border-radius:7px; color:var(--ink); background:transparent; font-size:13px; font-weight:600; text-align:left; }
+.theme-menu button:hover,.theme-menu button:focus-visible { background:var(--soft); }
+.theme-icon { width:20px; height:20px; flex-shrink:0; background:currentColor; mask:var(--icon) center / contain no-repeat; }
+.theme-icon-settings { --icon:url("assets/icons/settings.svg"); }
+.theme-icon-sun { --icon:url("assets/icons/sun.svg"); }
+.theme-icon-moon { --icon:url("assets/icons/moon.svg"); }
+.theme-check { margin-left:auto; visibility:hidden; }
+[aria-checked="true"] .theme-check { visibility:visible; }
 .header-actions,.account { display:flex; align-items:center; justify-content:flex-end; gap:12px; flex-wrap:wrap; }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
 @media (hover:hover) and (prefers-reduced-motion:no-preference) { .primary:hover,.form-submit:hover { transform:translateY(-2px); box-shadow:0 6px 16px var(--shadow); } .primary:active,.form-submit:active { transform:translateY(0); } }

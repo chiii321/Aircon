@@ -74,10 +74,26 @@ export function createClient() {
     await page.goto(base+'/index.html');
     assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
     assert.equal(await page.locator('a[href="register.html"]').count(),0);
-    await page.getByRole('button',{name:'Switch to dark mode'}).click();
+    await page.getByRole('button',{name:'Appearance: light',exact:true}).click();
+    await page.getByRole('menuitemradio',{name:'Dark',exact:true}).click();
     await page.reload();
     assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
-    await page.getByRole('button',{name:'Switch to light mode'}).click();
+    await page.getByRole('button',{name:'Appearance: dark',exact:true}).click();
+    await page.getByRole('menuitemradio',{name:'System',exact:true}).click();
+    await page.emulateMedia({colorScheme:'light'});
+    await page.waitForFunction(()=>document.documentElement.dataset.theme==='light');
+    await page.emulateMedia({colorScheme:'dark'});
+    await page.waitForFunction(()=>document.documentElement.dataset.theme==='dark');
+    await page.reload();
+    assert.equal(await page.getByRole('button',{name:'Appearance: system',exact:true}).count(),1);
+    await page.getByRole('button',{name:'Appearance: system',exact:true}).press('ArrowDown');
+    await check('Appearance menu');
+    await page.keyboard.press('End');
+    assert.equal(await page.getByRole('menuitemradio',{name:'Dark',exact:true}).evaluate(el=>el===document.activeElement),true);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('#theme-menu').isVisible(),false);
+    await page.getByRole('button',{name:'Appearance: system',exact:true}).click();
+    await page.getByRole('menuitemradio',{name:'Light',exact:true}).click();
     for (const colorScheme of ['light','dark']) {
       await page.emulateMedia({colorScheme});
       await page.evaluate(theme=>localStorage.setItem('inuvair-theme',theme),colorScheme);
