@@ -66,9 +66,7 @@ button, input {
   place-items: center;
   width: 36px;
   height: 36px;
-  border: 1px solid #e6eaf0;
-  border-radius: 8px;
-  background: #fff;
+  background: transparent;
   object-fit: contain;
 }
 
@@ -147,7 +145,6 @@ h1, h2, .choice-card strong {
   font-family: 'Manrope', sans-serif;
 }
 
-h1, h2 { font-family: 'Mokoto', 'Manrope', sans-serif; font-weight: 400; letter-spacing: .015em; }
 
 h1 {
   font-size: clamp(30px, 3.6vw, 46px);
