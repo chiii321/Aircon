@@ -19,6 +19,16 @@ acknowledgement still does not establish the physical AC state.
 
 ## Run locally on E:
 
+### Dark-logo deployment check
+
+The dark-mode fix is in commit `dc66300` on `codex/refine-inuvair-website`.
+When integrating into another deployment branch, preserve both the dark-theme rule
+in `web/base.css` and `web/assets/admin-logo-dark.svg`. The dark SVG must contain
+the white `#fefefe` stroke, not a blue stroke (`#35458e` on the faulty deployment).
+Run `node tests/dark-logo.cjs` after merging. Deploy the merged website from `web/`;
+do not overwrite newer collaborator features with an older website folder.
+After deployment, toggle dark mode and reload to confirm the white/yellow mark.
+
 From PowerShell, serve the website in one terminal:
 
 ```powershell
