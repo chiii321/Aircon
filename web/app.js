@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.95.0?bundle'
+import { readScheduleFile, DAYS } from './schedule-import.js'
 
 const api = createClient('https://jvdudsbtcjojbgtanbzo.supabase.co', 'sb_publishable_B4ZZZ62G7PF8sNcKGxWA0A_MKmvhTcF')
 const screen = document.getElementById('screen')
@@ -18,6 +19,12 @@ let classCheckins = []
 let classResponseMessage = ''
 let loadingError = ''
 let hasUnsavedEdits = false
+let scheduleImport = null
+let roomMappings = {}
+let weeklyBookings = []
+let weeklyLoadError = ''
+let importMessage = ''
+let importBusy = false
 screen.addEventListener('input', event => { if (event.target.id !== 'temperature-unit') hasUnsavedEdits = true })
 screen.addEventListener('change', event => { if (event.target.id !== 'temperature-unit') hasUnsavedEdits = true })
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
@@ -49,7 +56,7 @@ function renderOverview() {
     : `<div class="overview-actions"><a class="overview-action" href="#alerts"><span>♧</span><strong>Notifications</strong><small>Updates for your assigned devices</small><b>View notifications →</b></a></div>`
   const overviewCopy = isAdmin()
     ? 'Your fleet summary is above. Open Monitoring for live controller readings or Devices to manage individual rooms.'
-    : 'This overview includes only the devices assigned to your account. Notifications show connection and command updates for those devices.'
+    : accessContext?.accessMode === 'weekly' ? 'Your rooms appear during your scheduled class slots in Philippine time. Access ends when each slot finishes.' : 'This overview includes only the devices assigned to your account. Notifications show connection and command updates for those devices.'
   const alertAction = isAdmin() ? '<small>Open Notifications to review connection status and provisioning.</small>' : '<small>Only assigned devices are included in your notifications.</small>'
   const assignedRooms = devices.map(d => `<article class="card assigned-room"><div class="panel-top"><div><strong>${esc(d.name)}</strong><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="reading-grid"><div class="reading"><label>Temperature</label><b>${deviceStatus(d) === 'online' ? temperature(d.temperature_c) : '—'}</b><small>${deviceStatus(d) === 'online' && d.temperature_c != null ? 'Latest sensor report' : 'No live reading'}</small></div><div class="reading"><label>Humidity</label><b>${deviceStatus(d) === 'online' ? reading(d.humidity_pct, ' %') : '—'}</b><small>${deviceStatus(d) === 'online' && d.humidity_pct != null ? 'Latest sensor report' : 'No live reading'}</small></div><div class="reading"><label>AC state</label><b>Unknown</b><small>Physical state unverified</small></div></div><p class="muted">Last heartbeat: ${esc(seen(d))}</p></article>`).join('')
   const checkinCards = renderClassCheckins()
@@ -91,8 +98,61 @@ function renderMonitoring() {
 function renderScheduling() {
   const rows = allSchedules.map(s => `<tr><td><strong>${esc(deviceName(s.device_id))}</strong><br><small>${esc(s.device_id)}</small></td><td>${esc(s.on_time.slice(0, 5))}</td><td>${esc(s.off_time.slice(0, 5))}</td><td><span class="badge ${s.enabled ? 'online' : 'offline'}">${s.enabled ? 'Enabled' : 'Paused'}</span></td><td><a class="subtle-link" href="#device/${encodeURIComponent(s.device_id)}">Manage →</a></td></tr>`).join('')
   const targets = devices.map(d => `<a class="schedule-target" href="#device/${encodeURIComponent(d.id)}"><span><strong>${esc(d.name)}</strong><small>Controller ${esc(d.id)}</small></span><b>Manage →</b></a>`).join('')
-  return `<div class="page">${pageHead('Daily routines', 'Scheduling', 'Review daily ON/OFF windows. Open a device to add, edit, or remove its schedule.')}${banner('Schedules run on the controller', 'Each ESP32 caches its schedule and executes it locally after syncing with a valid clock.')}
+  return `<div class="page">${pageHead('Room routines', 'Scheduling', 'Import weekly class bookings and manage daily AC timers.')}${renderScheduleImport()}${banner('AC timers run on the controller', 'Each ESP32 caches its daily ON/OFF schedule and executes it locally after syncing with a valid clock.')}
     <div class="section-heading"><h2>Schedule windows</h2><small>${allSchedules.length} windows · Asia/Manila</small></div><div class="card table-wrap" tabindex="0" role="region" aria-label="Scrollable schedule table"><table class="device-table"><thead><tr><th>Device</th><th>Turns on</th><th>Turns off</th><th>Status</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="empty">No schedule windows yet. Open a device to add one.</td></tr>'}</tbody></table></div><div class="section-heading"><h2>Manage schedules</h2><small>Per controller</small></div><div class="schedule-targets">${targets || '<div class="card empty">No controllers are assigned to this account.</div>'}</div></div>`
+}
+
+function renderScheduleImport() {
+  const rooms = [...new Set(scheduleImport?.rows.map(row => row.room) || [])]
+  const preview = scheduleImport ? `<div class="section-heading"><h3>Preview bookings</h3><small>${scheduleImport.rows.length} rows · Asia/Manila</small></div>${scheduleImport.errors.length ? `<div class="import-errors" role="alert"><strong>Fix these rows in Excel and upload again</strong><ul>${scheduleImport.errors.map(error => `<li>${esc(error)}</li>`).join('')}</ul></div>` : `<p class="muted">Choose the controller installed in each room. Imported bookings give the approved user room access only during the listed weekly slot.</p><div class="import-mappings">${rooms.map(room => `<div class="field"><label for="map-room-${esc(room)}">Room ${esc(room)}</label><select id="map-room-${esc(room)}" class="settings-select room-mapping" data-room="${esc(room)}"><option value="">Choose controller</option>${devices.map(device => `<option value="${esc(device.id)}" ${roomMappings[room] === device.id ? 'selected' : ''}>${esc(device.name)} · ${esc(device.id)}</option>`).join('')}</select></div>`).join('')}</div>`}<div class="table-wrap" tabindex="0" role="region" aria-label="Excel booking preview"><table class="device-table"><thead><tr><th>Excel row</th><th>User</th><th>Room</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${scheduleImport.rows.map(row => `<tr><td>${row.row}</td><td>${esc(row.email)}</td><td>${esc(row.room)}</td><td>${esc(DAYS[row.day - 1] || 'Invalid')}</td><td>${esc(row.start)}–${esc(row.end)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table></div><div class="button-row"><button class="primary" id="save-import" type="button" ${importBusy || scheduleImport.errors.length || weeklyLoadError ? 'disabled' : ''}>${importBusy ? 'Saving…' : 'Save weekly bookings'}</button><button class="secondary" id="clear-import" type="button" ${importBusy ? 'disabled' : ''}>Clear preview</button></div><small class="muted">Saving adds bookings. Exact duplicates are skipped; existing bookings are kept. Remove an old booking below before changing its time.</small>` : ''
+  const saved = weeklyBookings.map(row => `<tr><td>${esc(row.user_email)}</td><td>${esc(row.room_number)}<br><small>${esc(deviceName(row.device_id))}</small></td><td>${esc(DAYS[row.weekday - 1])}</td><td>${esc(row.start_time.slice(0, 5))}–${esc(row.end_time.slice(0, 5))}</td><td>${esc(row.notes)}</td><td><button class="secondary remove-booking" data-booking-id="${esc(row.id)}" type="button">Remove</button></td></tr>`).join('')
+  return `<section class="card panel schedule-import"><div class="panel-top"><div><div class="eyebrow">EXCEL TIMETABLE</div><h2>Weekly room bookings</h2></div><a class="secondary template-download" href="templates/inuvair-weekly-room-schedule-template.xlsx" download>Download Excel template</a></div><p class="muted">Upload a filled template to assign approved users to rooms by weekday and time. Bookings repeat weekly in Philippine time. They do not automatically turn an AC on or off.</p><div class="field"><label for="schedule-file">Upload schedule (.xlsx, up to 2 MB / 500 bookings)</label><input id="schedule-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ${importBusy ? 'disabled' : ''}></div><p class="status-text" id="import-status" role="status">${esc(importMessage)}</p>${weeklyLoadError ? `<p class="error-text">${esc(weeklyLoadError)}</p>` : ''}${preview}<div class="section-heading"><h3>Saved weekly bookings</h3><small>${weeklyBookings.length} bookings</small></div><div class="table-wrap" tabindex="0" role="region" aria-label="Saved weekly bookings"><table class="device-table"><thead><tr><th>User</th><th>Room / Controller</th><th>Day</th><th>Time</th><th>Class / Notes</th><th></th></tr></thead><tbody>${saved || '<tr><td colspan="6" class="empty">No weekly bookings saved yet.</td></tr>'}</tbody></table></div></section>`
+}
+
+function attachScheduleImport() {
+  document.getElementById('schedule-file').onchange = async event => {
+    const file = event.target.files[0]
+    if (!file) return
+    importBusy = true
+    importMessage = 'Reading Excel file…'
+    scheduleImport = null
+    try {
+      scheduleImport = await readScheduleFile(file, accessUsers)
+      roomMappings = {}
+      for (const room of new Set(scheduleImport.rows.map(row => row.room))) {
+        const saved = weeklyBookings.find(booking => booking.room_number === room)
+        const named = devices.filter(device => new RegExp(`^room\\s+${room}$`, 'i').test(device.name.trim()))
+        roomMappings[room] = saved?.device_id || (named.length === 1 ? named[0].id : '')
+      }
+      importMessage = `${file.name}: ${scheduleImport.rows.length} booking rows extracted. Review before saving.`
+    } catch (error) { importMessage = error.message || 'The Excel file could not be read.' }
+    finally { importBusy = false; render(); hasUnsavedEdits = true }
+  }
+  document.querySelectorAll('.room-mapping').forEach(select => select.onchange = () => { roomMappings[select.dataset.room] = select.value; hasUnsavedEdits = true })
+  const clear = document.getElementById('clear-import')
+  if (clear) clear.onclick = () => { scheduleImport = null; roomMappings = {}; importMessage = ''; render() }
+  const save = document.getElementById('save-import')
+  if (save) save.onclick = async () => {
+    const rooms = [...new Set(scheduleImport.rows.map(row => row.room))]
+    if (rooms.some(room => !roomMappings[room])) return setMessage('import-status', 'Choose a controller for every room.', true)
+    if (new Set(rooms.map(room => roomMappings[room])).size !== rooms.length) return setMessage('import-status', 'Each room must use a different controller.', true)
+    importBusy = true
+    document.querySelectorAll('#schedule-file, #save-import, #clear-import, .room-mapping, .remove-booking').forEach(element => element.disabled = true)
+    const { data, error } = await api.rpc('admin_import_weekly_bookings', { bookings: scheduleImport.rows.map(row => ({ email: row.email, room_number: row.room, device_id: roomMappings[row.room], weekday: row.day, start_time: row.start, end_time: row.end, notes: row.notes })) })
+    importBusy = false
+    if (error) { document.querySelectorAll('#schedule-file, #save-import, #clear-import, .room-mapping, .remove-booking').forEach(element => element.disabled = false); return setMessage('import-status', error.message, true) }
+    importMessage = `${data.added} bookings saved; ${data.skipped} duplicates skipped.`
+    scheduleImport = null
+    roomMappings = {}
+    await refresh(true)
+  }
+  document.querySelectorAll('.remove-booking').forEach(button => button.onclick = async () => {
+    button.disabled = true
+    const { error } = await api.rpc('admin_remove_weekly_booking', { booking_id: button.dataset.bookingId })
+    if (error) { button.disabled = false; return setMessage('import-status', error.message, true) }
+    importMessage = 'Weekly booking removed.'
+    await refresh(true)
+  })
 }
 
 function commandStatus(c) {
@@ -261,6 +321,7 @@ function render() {
   attachTableLinks()
   if (selectedId() && devices.some(d => d.id === selectedId())) attachDetail(selectedId())
   if (current === 'settings' && isAdmin()) attachAccessManager()
+  if (current === 'scheduling' && isAdmin()) attachScheduleImport()
   if (current === 'overview' || current === 'alerts') attachClassConfirmation()
   const unitSelect = document.getElementById('temperature-unit')
   if (unitSelect) unitSelect.onchange = () => { localStorage.setItem('temperature-unit', unitSelect.value); hasUnsavedEdits = false; render() }
@@ -339,10 +400,15 @@ async function refresh(force = false) {
     if (result.error) loadingError = result.error.message
     else commandHistory = result.data || []
   }
-  if (!error && current === 'settings' && isAdmin()) {
+  if (!error && ['settings', 'scheduling'].includes(current) && isAdmin()) {
     const result = await api.rpc('admin_list_users')
     if (result.error) loadingError = result.error.message
     else accessUsers = Array.isArray(result.data) ? result.data : []
+  }
+  if (!error && current === 'scheduling' && isAdmin()) {
+    const result = await api.from('weekly_room_assignments').select('id,user_email,room_number,device_id,weekday,start_time,end_time,notes').order('weekday').order('start_time')
+    weeklyLoadError = result.error ? 'Weekly bookings are unavailable. The database update must be installed before saving imports.' : ''
+    if (!result.error) weeklyBookings = result.data || []
   }
   const id = selectedId()
   if (id && !error) {

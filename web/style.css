@@ -934,3 +934,12 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .user-access-card strong { color:var(--ink); }
 .user-access-card .panel-top strong { color:var(--ink); }
 .panel .tag { background:var(--soft);color:var(--muted); }.status-text { color:var(--accent); }.status-text.error { color:var(--error); }
+.schedule-import { margin-bottom: 28px; }
+.schedule-import .field { margin: 20px 0; }
+.schedule-import input[type=file] { max-width: 100%; padding: 12px; border: 1px dashed var(--border, #ccd7e5); border-radius: 10px; }
+.import-mappings { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+.import-errors { max-height: 240px; overflow: auto; padding: 16px; background: #fff2ed; color: #8e302a; border-radius: 12px; }
+.import-errors ul { padding-left: 20px; }
+.template-download { display: inline-flex; align-items: center; text-decoration: none; }
+.schedule-import .button-row { margin: 20px 0 12px; }
+.schedule-import .error-text { color: #a33630; }
