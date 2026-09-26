@@ -62,7 +62,7 @@ separately on the installed device.
 
 The design-taste and Ponytail skills guided consistent typography, native form
 controls, and reduced CSS duplication. User feedback subsequently restored a softer
-mint/teal palette around the original blue logo, rounded surfaces, and short entrance
+gentle blue palette with a small yellow underline to echo the logo, rounded surfaces, and short entrance
 and button-hover motion. Reduced-motion preferences disable those effects. Appllama references
 included Receipt Scanner (1550270774/oth_l6ri4) for grouped destinations and GOWOD
 (1227834875/oth_9aqwo) for readable metric hierarchy in dark mode. These are pattern
