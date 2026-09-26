@@ -946,3 +946,6 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .import-confirmation::backdrop { background: #071626aa; }
 .import-confirmation .table-wrap { max-height: 45dvh; overflow: auto; }
 .import-confirmation .button-row { margin-top: 20px; }
+.user-role-group { min-width: 0; }
+.user-role-group + .user-role-group { border-top: 1px solid var(--line); padding-top: 20px; margin-top: 12px; }
+.user-role-group .section-heading { margin: 12px 0; }
