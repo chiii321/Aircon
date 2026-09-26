@@ -25,7 +25,7 @@ Deno.serve(async request => {
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'Idempotency-Key': `registration-${user.user.id}-${recipient}-${Math.floor(Date.now() / 60000)}` },
-      body: JSON.stringify({ from, to: [recipient], subject: 'You are invited to INUVAIR', text: `You have been invited to create an INUVAIR account.\n\nRegister here: ${link.href}\n\nConfirm your email after registering. An admin must approve your account before you can access assigned rooms.\n\nIf you were not expecting this invitation, you can ignore it.` }),
+      body: JSON.stringify({ from, to: [recipient], subject: 'Welcome to INUVAIR — your invitation', text: `Welcome to INUVAIR!\n\nYour administrator has invited you to join our room climate workspace. We are glad to have you here.\n\nCreate your account and choose a password here:\n${link.href}\n\nAfter signing up, check your inbox for the confirmation email. Open its link to verify your email and sign in automatically. Your administrator will approve your account and assign your room timetable.\n\nYou do not need a Vercel account or a Vercel access request.\n\nIf you were not expecting this invitation, you can ignore it.` }),
       signal: AbortSignal.timeout(15000)
     })
     if (!response.ok) return reply(response.status === 429 ? 429 : 502, response.status === 429 ? 'Email sending limit reached. Try again later.' : 'The email provider could not send the invitation. Check the sender configuration before retrying.')

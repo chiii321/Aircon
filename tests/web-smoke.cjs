@@ -202,12 +202,16 @@ export function createClient() {
     await page.getByRole('button',{name:'Sign in',exact:true}).click();
     await page.getByText('Invalid login credentials',{exact:true}).waitFor();
     assert.equal(await page.locator('a[href="register.html"]').count(),0);
-    await page.goto(invite);
+    assert.equal(new URL(invite).origin,'https://inuvair.tech');
+    await page.goto(base + new URL(invite).pathname + new URL(invite).search);
     assert.equal(await page.getByLabel('Email address').inputValue(),'invited@example.test');
     assert.equal(await page.getByLabel('Email address').getAttribute('readonly'),'');
     await page.getByLabel('Password').fill('test-password');
     await page.getByRole('button',{name:'Create account',exact:true}).click();
-    await page.getByText('Check your inbox to confirm your email, then sign in.',{exact:true}).waitFor();
+    await page.getByText('Account created. Check your inbox and spam folder. Open the confirmation link to confirm your email and sign in automatically.',{exact:true}).waitFor();
+    assert.equal(await page.locator('#email').inputValue(),'');
+    assert.equal(await page.locator('#password').inputValue(),'');
+    assert.equal(await page.getByRole('button',{name:'Awaiting email confirmation'}).isDisabled(),true);
     assert.deepEqual(errors,[]);
     console.log('PASS: 48 responsive/theme views, axe checks, role visibility, mocked commands/schedules, edit retention, loading errors, login and registration.');
   } finally { await browser.close(); }

@@ -308,7 +308,7 @@ function attachAccessManager() {
   inviteForm.onsubmit = event => {
     event.preventDefault()
     const email = document.getElementById('invite-email').value.trim().toLowerCase()
-    const link = new URL('register.html', location.href)
+    const link = new URL('https://inuvair.tech/register.html')
     link.searchParams.set('email', email)
     const result = document.getElementById('invite-result')
     document.getElementById('invite-link').value = link.href

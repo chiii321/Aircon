@@ -6,6 +6,10 @@ const form = document.getElementById('auth-form')
 const status = document.getElementById('auth-status')
 const submit = form.querySelector('button[type="submit"]')
 const emailInput = form.elements.email
+let awaitingConfirmation = false
+api.auth.onAuthStateChange((event, session) => {
+  if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) location.replace('dashboard.html')
+})
 const invitedEmail = mode === 'register' ? new URLSearchParams(location.search).get('email')?.trim() : ''
 if (mode === 'register' && invitedEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitedEmail)) {
   emailInput.value = invitedEmail
@@ -34,19 +38,30 @@ form.addEventListener('submit', async event => {
   const password = form.elements.password.value
   try {
     const result = mode === 'register'
-      ? await api.auth.signUp({ email, password, options: { emailRedirectTo: new URL('dashboard.html', location.href).href } })
+      ? await api.auth.signUp({ email, password, options: { emailRedirectTo: 'https://inuvair.tech/dashboard.html' } })
       : await api.auth.signInWithPassword({ email, password })
     if (result.error) {
       status.classList.add('error')
       status.textContent = authErrorMessage(result.error)
       return
     }
-    if (mode === 'register') status.textContent = 'Check your inbox to confirm your email, then sign in.'
+    if (mode === 'register') {
+      form.reset()
+      emailInput.value = ''
+      form.elements.password.value = ''
+      if (result.data?.session) { location.replace('dashboard.html'); return }
+      awaitingConfirmation = true
+      emailInput.disabled = true
+      form.elements.password.disabled = true
+      submit.textContent = 'Awaiting email confirmation'
+      status.textContent = 'Account created. Check your inbox and spam folder. Open the confirmation link to confirm your email and sign in automatically.'
+      history.replaceState(null, '', location.pathname)
+    }
     else location.replace('dashboard.html')
   } catch (error) {
     status.classList.add('error')
     status.textContent = authErrorMessage(error)
   } finally {
-    submit.disabled = false
+    submit.disabled = awaitingConfirmation
   }
 })
