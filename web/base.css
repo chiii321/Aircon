@@ -27,7 +27,7 @@ input,select { color:var(--ink); background:var(--surface); border:1px solid var
 input::placeholder { color:var(--muted); opacity:1; }
 .brand-name { font-family:Mokoto,sans-serif; font-weight:400; color:var(--brand); font-size:17px; letter-spacing:.02em; }
 .brand-symbol,.brand-mark { width:36px; height:36px; object-fit:contain; flex-shrink:0; }
-:root[data-theme="dark"] .brand-symbol,:root[data-theme="dark"] .brand-mark { content:url("assets/admin-logo-dark.svg"); }
+:root[data-theme="dark"] .brand-symbol,:root[data-theme="dark"] .brand-mark { content:url("assets/inuvair-logo-dark.svg"); }
 .primary,.secondary,.danger,.form-submit { display:inline-flex; align-items:center; justify-content:center; gap:10px; min-height:44px; border-radius:10px; padding:10px 18px; font-size:14px; font-weight:600; text-decoration:none; border:1px solid var(--line); transition:background .2s,transform .2s,box-shadow .2s; }
 .primary,.form-submit { color:var(--on-accent); background:var(--accent); border-color:var(--accent); }
 .primary:hover,.form-submit:hover { background:var(--accent-hover); }
