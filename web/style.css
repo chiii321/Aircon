@@ -18,7 +18,7 @@
 .page { max-width: 1280px; padding: 40px; margin: auto; }
 .page h1 { margin-bottom: 12px; }
 .lead { color: var(--muted); font-size: 15px; margin-bottom: 32px; max-width: 70ch; }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 6px 24px var(--shadow); }
 .section-heading, .card-heading, .panel-top { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 .section-heading { margin: 32px 0 16px; }
 .section-heading h2, .card-heading h2, .panel-top h2 { margin: 0; }

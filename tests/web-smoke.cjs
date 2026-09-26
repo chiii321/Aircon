@@ -64,6 +64,7 @@ export function createClient() {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const check = async name => {
+    await page.evaluate(() => Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {}))));
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, name+' overflows');
     const result = await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
     assert.deepEqual(result.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})),[],name+' accessibility');
