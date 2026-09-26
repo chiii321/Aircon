@@ -11,11 +11,12 @@ window.testWrites = [];
 window.testRole = 'admin';
 window.testError = false;
 window.testEmpty = false;
+window.testHold = false;
 window.testSession = location.pathname.endsWith('dashboard.html');
 const user = {id:'test-user',email:'room.operator@example.test'};
 const session = () => window.testSession ? {user} : null;
 const devices = () => window.testEmpty ? [] : [
-  {id:'esp32-01',name:'Classroom 01',model:'AUX',provisioned:true,last_seen_at:new Date().toISOString(),temperature_c:28.6,humidity_pct:64.2},
+  {id:'esp32-01',name:'Classroom 01',model:'AUX',provisioned:true,last_seen_at:new Date().toISOString(),temperature_c:28.6,humidity_pct:64.2,schedule_hold:window.testHold},
   {id:'esp32-02',name:'Classroom 02',model:'AUX',provisioned:true,last_seen_at:'2026-01-01T00:00:00Z',temperature_c:27,humidity_pct:65},
   {id:'esp32-03',name:'Laboratory',provisioned:false}
 ];
@@ -32,6 +33,7 @@ export function createClient() {
       if(window.testError) throw new Error('Connection unavailable');
       if(name==='get_my_access_context') return {data:{role:window.testRole}};
       if(name==='admin_list_users') return {data:[{id:'test-member',email:'member@example.test',role:'authorized',deviceIds:['esp32-01']}]};
+      if(name==='respond_to_schedule_confirmation') window.testHold=false;
       window.testWrites.push({name,args});return {data:null,error:null};
     },
     from(table) {
@@ -67,8 +69,17 @@ export function createClient() {
     assert.deepEqual(result.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})),[],name+' accessibility');
   };
   try {
+    await page.emulateMedia({colorScheme:'dark'});
+    await page.goto(base+'/index.html');
+    assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
+    assert.equal(await page.locator('a[href="register.html"]').count(),0);
+    await page.getByRole('button',{name:'Switch to dark mode'}).click();
+    await page.reload();
+    assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+    await page.getByRole('button',{name:'Switch to light mode'}).click();
     for (const colorScheme of ['light','dark']) {
       await page.emulateMedia({colorScheme});
+      await page.evaluate(theme=>localStorage.setItem('inuvair-theme',theme),colorScheme);
       for (const width of [1440,390]) {
         await page.setViewportSize({width,height:1000});
         for (const file of ['index.html','login.html','register.html']) {
@@ -110,10 +121,20 @@ export function createClient() {
     await page.getByText('83.5 °F',{exact:true}).waitFor();
     await page.evaluate(()=>{location.hash='settings'});
     await page.locator('#temperature-unit').selectOption('celsius');
+    await page.getByLabel('Invitee email address').fill('invited@example.test');
+    await page.getByRole('button',{name:'Create invite link'}).click();
+    const invite = await page.getByLabel('Share this registration link').inputValue();
+    assert.equal(new URL(invite).searchParams.get('email'),'invited@example.test');
     await page.evaluate(()=>{window.testRole='authorized';location.hash='overview'});
     await page.getByText('28.6 °C',{exact:true}).waitFor();
     assert.equal(await page.locator('[data-route]:visible').count(),2);
     assert.equal(await page.getByText('Controls & schedule →',{exact:true}).count(),0);
+    await page.evaluate(()=>{window.testHold=true;location.hash='alerts'});
+    await page.getByRole('heading',{name:'Notifications',exact:true}).waitFor();
+    await page.evaluate(()=>{location.hash='overview'});
+    await page.getByRole('button',{name:'Resume schedules'}).click();
+    await page.getByRole('button',{name:'Resume schedules'}).waitFor({state:'hidden'});
+    assert.equal(await page.evaluate(()=>window.testWrites.at(-1).name),'respond_to_schedule_confirmation');
     await page.evaluate(()=>{window.testEmpty=true;location.hash='alerts'});
     await page.getByText('No controllers are assigned to this account.',{exact:true}).waitFor();
     await page.evaluate(()=>{window.testRole='pending';location.hash='overview'});
@@ -128,8 +149,10 @@ export function createClient() {
     await page.getByLabel('Password').fill('test-password');
     await page.getByRole('button',{name:'Sign in',exact:true}).click();
     await page.getByText('Invalid login credentials',{exact:true}).waitFor();
-    await page.goto(base+'/register.html');
-    await page.getByLabel('Email address').fill('test@example.test');
+    assert.equal(await page.locator('a[href="register.html"]').count(),0);
+    await page.goto(invite);
+    assert.equal(await page.getByLabel('Email address').inputValue(),'invited@example.test');
+    assert.equal(await page.getByLabel('Email address').getAttribute('readonly'),'');
     await page.getByLabel('Password').fill('test-password');
     await page.getByRole('button',{name:'Create account',exact:true}).click();
     await page.getByText('Check your inbox to confirm your email, then sign in.',{exact:true}).waitFor();

@@ -2,10 +2,17 @@
 
 The website uses static HTML, CSS, and browser JavaScript. There is no build step.
 `web/base.css` owns shared colors, typography, controls, focus states, and system
-dark mode. `auth.css` and `style.css` contain page-specific layouts. Preserve the
+theme tokens. `theme.js` defaults to light and persists an explicit light/dark
+choice across pages. `auth.css` and `style.css` contain page-specific layouts. Preserve the
 INUVAIR logo, wordmark, routes, and account permissions when editing the UI.
 
-The September 26 refinement replaces decorative labels and generic copy with
+The September 26 refinement integrates the collaborator's invitation and schedule
+hold workflow through commit `9a465fe`. Public pages offer sign-in only; registration
+links come from the administrator. Those links prefill an email and are not secure
+invitation tokens: email confirmation, administrator approval, and device assignment
+still apply. Backend-enforced invite-only signup is not implemented by this UI.
+
+The centered welcome screen replaces decorative labels and generic copy with
 direct account instructions and room readings. Overview shows only devices
 returned for the signed-in account. Missing readings remain unavailable; an IR
 acknowledgement still does not establish the physical AC state.

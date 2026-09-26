@@ -58,8 +58,7 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .muted { color: var(--muted); font-size: 14px; line-height: 1.6; }
 .skip-link { position: fixed; top: 8px; left: 8px; z-index: 3; padding: 12px; background: var(--surface); transform: translateY(-150%); }
 .skip-link:focus { transform: none; }
-@media (prefers-color-scheme: dark) {
-  :root {
+:root[data-theme="dark"] {
     color-scheme: dark;
     --bg: #151a23; --surface: #1c2330; --soft: #252e3e; --ink: #edf0f7;
     --muted: #b0bbcd; --line: #3b4557; --accent: #b1bfff; --accent-hover: #cbd4ff;
@@ -67,8 +66,10 @@ input::placeholder { color: var(--muted); opacity: 1; }
     --success: #93dfb2; --success-bg: #1d352d;
     --warning: #f0ce8c; --warning-bg: #372f22;
     --error: #ffadb4; --error-bg: #3b262f;
-  }
 }
+.theme-toggle { min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 13px; white-space: nowrap; }
+.theme-toggle:hover { background: var(--soft); }
+.header-actions, .account { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; }
 }
