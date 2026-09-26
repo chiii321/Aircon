@@ -63,12 +63,12 @@ button {
 
 .brand-mark {
   display: block;
-  background: white;
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
+  background: transparent;
+  width: 36px;
+  height: 36px;
+  border-radius: 0;
   object-fit: contain;
-  flex: 0 0 30px;
+  flex: 0 0 36px;
 }
 
 .accent {
@@ -195,7 +195,7 @@ button {
 
 .overview-page { max-width: 1080px; padding-top: clamp(10px, 1.5vh, 20px); }
 .overview-brand { display:flex; align-items:center; justify-content:center; gap:7px; height:58px; color:#35458e; font-family:'Mokoto',Inter,sans-serif; font-size:14px; letter-spacing:.03em; font-weight:400; }
-.overview-brand .brand-symbol { display:block; width:34px; height:34px; object-fit:contain; border-radius:8px; background:#fff; border:1px solid #e6eaf0; }
+.overview-brand .brand-symbol { display:block; width:36px; height:36px; object-fit:contain; }
 .brand-caption { display:none; }
 .summary-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:13px; margin:0 0 14px; }
 .summary-card { display:flex; align-items:center; gap:13px; min-height:88px; padding:14px 18px; }
@@ -665,9 +665,9 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     font-size: 17px;
   }
   .brand-mark {
-    width: 27px;
-    height: 27px;
-    flex-basis: 27px;
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
     font-size: 17px;
   }
   .nav-label, .sidebar-foot {
