@@ -111,6 +111,16 @@ export function createClient() {
           await page.evaluate(route=>{location.hash=route},route);
           await page.waitForTimeout(150);
           await check(route+' '+colorScheme+' '+width);
+          if(route==='overview') {
+            const action=page.locator('.overview-action').first();
+            await action.hover();
+            await check('Overview hovered card '+colorScheme+' '+width);
+            assert.equal(await action.evaluate(el=>getComputedStyle(el).backgroundColor),await page.locator('.summary-icon').first().evaluate(el=>getComputedStyle(el).backgroundColor));
+            await action.focus();
+            await page.mouse.move(0,0);
+            await check('Overview focused card '+colorScheme+' '+width);
+            await action.evaluate(el=>el.blur());
+          }
           if(process.env.SHOTS_DIR) await page.screenshot({path:process.env.SHOTS_DIR+'/'+route.replace('/','-')+'-'+colorScheme+'-'+width+'.png',fullPage:true});
         }
       }
