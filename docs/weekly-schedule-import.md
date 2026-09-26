@@ -8,6 +8,8 @@ Only `.xlsx` files up to 2 MB and 500 booking rows are accepted. Formula cells i
 
 Imports add bookings; exact duplicate slots are skipped. They do not replace saved bookings. Remove an old booking from the saved list before importing its replacement. Deleting all bookings for a user restores their existing manual device assignments.
 
+Populated cells outside the six template columns, unreadable text/control characters and unsupported values are rejected. The preview shows only rows that pass field and overlap checks; any workbook errors block the whole import. After controller mapping and saved-booking checks, a confirmation dialog lists exactly the verified values to send and explains their effect on weekly room access. Canceling sends nothing. The server revalidates the final request before writing anything.
+
 For accounts with weekly bookings, database access rules allow only controllers in the current weekday/time slot: start is inclusive, end is exclusive. Other accounts retain their manual device assignments. Admins retain full access. Approval is required for either assignment mode. Dashboard refresh normally updates visibility every eight seconds. Class check-in responses require current room access.
 
 Weekly bookings control authorized-user visibility and check-in access. They do not create AC commands or change daily ESP32 timers. Automatic weekly AC execution would require separate firmware and server work.

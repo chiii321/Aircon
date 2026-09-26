@@ -44,7 +44,7 @@ input::placeholder { color:var(--muted); opacity:1; }
   --brand:#b1bfff; --wash:#243e61; --shadow:#081b2433; --success:#93dfb2; --success-bg:#1d352d;
   --warning:#f0ce8c; --warning-bg:#372f22; --error:#ffadb4; --error-bg:#3b262f;
 }
-.theme-toggle { min-height:44px; padding:8px 12px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--ink); font-size:13px; white-space:nowrap; }
+.theme-toggle { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; padding:10px; border:1px solid var(--line); border-radius:50%; background:var(--surface); color:var(--ink); }
 .theme-toggle:hover { background:var(--soft); }
 .theme-picker { position:relative; }
 .theme-menu { position:absolute; right:0; top:calc(100% + 8px); z-index:3; width:168px; padding:6px; border:1px solid var(--line); border-radius:13px; background:var(--surface); box-shadow:0 6px 20px var(--shadow); }

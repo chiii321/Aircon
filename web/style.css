@@ -942,3 +942,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .template-download { display: inline-flex; align-items: center; text-decoration: none; }
 .schedule-import .button-row { margin: 20px 0 12px; }
 .schedule-import .error-text { color: #a33630; }
+.import-confirmation { width: min(960px, calc(100% - 32px)); max-height: calc(100dvh - 48px); padding: 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--ink); }
+.import-confirmation::backdrop { background: #071626aa; }
+.import-confirmation .table-wrap { max-height: 45dvh; overflow: auto; }
+.import-confirmation .button-row { margin-top: 20px; }

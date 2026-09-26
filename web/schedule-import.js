@@ -17,6 +17,8 @@ export function parseScheduleRows(matrix, users) {
   }
   const rows = []
   const errors = []
+  const invalid = new Set()
+  if (matrix[0].slice(6).some(value => String(value ?? '').trim())) errors.push('Extra column headings found. Keep only the six template columns.')
   matrix.slice(1).forEach((cells, i) => {
     if (cells.every(value => value == null || String(value).trim() === '')) return
     if (rows.length >= 500) throw new Error('Use no more than 500 bookings per workbook.')
@@ -29,21 +31,25 @@ export function parseScheduleRows(matrix, users) {
     const row = { row: i + 2, email, room, day, start, end, notes }
     rows.push(row)
     const issues = []
+    if (cells.slice(6).some(value => value != null && String(value).trim())) issues.push('Unexpected cells outside the six template columns')
+    if (cells.slice(0, 6).some(value => typeof value === 'string' && /[\u0000-\u001f\u007f\ufffd]/.test(value))) issues.push('Unreadable text or line breaks detected')
+    if (cells.slice(0, 6).some(value => value != null && !['string','number'].includes(typeof value))) issues.push('Unsupported cell value')
     if (!users.some(user => user.email?.toLowerCase() === email && user.role === 'authorized')) issues.push('Email must belong to an approved authorized account')
     if (!/^\d{1,6}$/.test(room)) issues.push('Use a numeric room number, e.g. 301')
     if (!day) issues.push('Choose Monday–Sunday')
     if (!start || !end || start >= end) issues.push('Use 24-hour times with end after start')
     if (notes.length > 200) issues.push('Notes must be 200 characters or fewer')
-    if (issues.length) errors.push(`Row ${row.row}: ${issues.join('; ')}.`)
+    if (issues.length) { invalid.add(row.row); errors.push(`Row ${row.row}: ${issues.join('; ')}.`) }
   })
   if (!rows.length) throw new Error('The Schedule sheet has no bookings. Fill in at least one row.')
   for (let i = 0; i < rows.length; i++) for (let j = 0; j < i; j++) {
     const a = rows[i], b = rows[j]
     if (a.day && a.day === b.day && a.start && a.end && b.start && b.end && a.start < b.end && b.start < a.end && (a.email === b.email || a.room === b.room)) {
       errors.push(`Rows ${b.row} and ${a.row}: overlapping bookings for the same user or room.`)
+      invalid.add(a.row); invalid.add(b.row)
     }
   }
-  return { rows, errors }
+  return { rows: rows.filter(row => !invalid.has(row.row)), errors }
 }
 
 export async function readScheduleFile(file, users) {

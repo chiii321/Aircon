@@ -49,7 +49,8 @@
     button.setAttribute('aria-controls', menu.id)
     button.setAttribute('aria-expanded', 'false')
     const update = () => {
-      button.textContent = 'Appearance'
+      button.innerHTML = `<span class="theme-icon theme-icon-${icons[theme]}" aria-hidden="true"></span>`
+      button.title = `Appearance: ${theme}`
       button.setAttribute('aria-label', `Appearance: ${theme}`)
       options.forEach((option, i) => option.setAttribute('aria-checked', String(choices[i] === theme)))
     }
