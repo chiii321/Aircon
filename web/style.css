@@ -133,3 +133,12 @@
   .alert-detail { flex-wrap: wrap; }
   .section-heading small { max-width: 40ch; }
 }
+.invite-form, .invite-result { margin: 20px 0; }
+.invite-controls { display: flex; flex-wrap: wrap; gap: 12px; }
+.invite-controls input { flex: 1; min-width: 0; }
+.schedule-held { padding: 24px; margin: 24px 0; }
+.schedule-held h2 { margin-bottom: 12px; }
+@media (max-width: 480px) {
+  .invite-controls { flex-direction: column; }
+  .invite-controls input { width: 100%; }
+}

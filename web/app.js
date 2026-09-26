@@ -13,6 +13,7 @@ let commandHistory = []
 let accessContext = null
 let accessUsers = []
 let latestCommand = null
+let heldDeviceIds = new Set()
 let loadingError = ''
 let hasUnsavedEdits = false
 screen.addEventListener('input', event => { if (event.target.id !== 'temperature-unit') hasUnsavedEdits = true })
@@ -56,6 +57,7 @@ function renderOverview() {
       <div class="stat"><div class="stat-label">Online</div><div class="stat-value">${online}</div><div class="stat-sub">Checked in within 30 seconds</div></div>
       <div class="stat"><div class="stat-label">Needs attention</div><div class="stat-value">${attention}</div><div class="stat-sub">Offline or awaiting setup</div></div>
     </div>
+    ${heldDeviceIds.size ? `<section class="card schedule-held"><h2>Schedule paused</h2><p>Paused for: ${[...heldDeviceIds].map(deviceName).map(esc).join(', ')}. These controllers will not turn on from their local schedules until you resume them.</p><p class="muted">The pause syncs the next time each controller connects.</p><button class="secondary resume-schedule" type="button">Resume schedules</button><p id="resume-status" class="status-text" role="status"></p></section>` : ''}
     <div class="section-heading"><h2>Your rooms</h2><a class="subtle-link" href="#alerts">View notifications →</a></div>
     <div class="monitor-grid">${roomCards || '<div class="card empty">No rooms assigned yet. Ask your administrator to assign a controller to your account.</div>'}</div>
     <p class="muted history-note">Readings refresh every 8 seconds. An online controller does not confirm that the air conditioner is running.</p>
@@ -256,8 +258,26 @@ function render() {
   attachTableLinks()
   if (selectedId() && devices.some(d => d.id === selectedId())) attachDetail(selectedId())
   if (current === 'settings' && isAdmin()) attachAccessManager()
+  if (current === 'overview') attachClassConfirmation()
   const unitSelect = document.getElementById('temperature-unit')
   if (unitSelect) unitSelect.onchange = () => { localStorage.setItem('temperature-unit', unitSelect.value); hasUnsavedEdits = false; render() }
+}
+
+function attachClassConfirmation() {
+  const resume = document.querySelector('.resume-schedule')
+  if (!resume) return
+  resume.onclick = async () => {
+    resume.disabled = true
+    try {
+      const results = await Promise.all([...heldDeviceIds].map(id => api.rpc('respond_to_schedule_confirmation', { p_device_id: id, p_continue: true })))
+      const failure = results.find(result => result.error)
+      if (failure) throw failure.error
+      await refresh(true)
+    } catch (error) {
+      setMessage('resume-status', error.message || 'Could not resume schedules. Try again.', true)
+      resume.disabled = false
+    }
+  }
 }
 
 async function refresh(force = false) {
@@ -290,6 +310,7 @@ async function refresh(force = false) {
   const { data, error } = await api.from('devices').select('*').order('id')
   loadingError = error?.message || ''
   if (!error) devices = data || []
+  heldDeviceIds = accessContext.role === 'authorized' ? new Set(devices.filter(d => d.schedule_hold).map(d => d.id)) : new Set()
   if (!error && current === 'scheduling') {
     const result = await api.from('device_schedules').select('id,device_id,on_time,off_time,enabled,updated_at').order('on_time')
     if (result.error) loadingError = result.error.message
