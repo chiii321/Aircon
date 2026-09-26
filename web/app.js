@@ -65,6 +65,7 @@ function table(rows) {
 }
 
 function renderOverview() {
+  const assignedDeviceCount = isAdmin() ? devices.length : new Set(weeklyBookings.map(booking => booking.device_id)).size
   const online = devices.filter(d => deviceStatus(d) === 'online').length
   const provisioned = devices.filter(d => d.provisioned).length
   const attention = devices.filter(d => deviceStatus(d) !== 'online').length
@@ -79,7 +80,7 @@ function renderOverview() {
   const checkinCards = renderClassCheckins()
   return `<div class="page overview-page"><div class="overview-brand"><img class="brand-symbol" src="assets/inuvair-logo-light-v2.svg" alt=""><span class="brand-name">INUVAIR</span><span class="brand-caption">ROOM CLIMATE</span></div>
     ${classResponseMessage ? banner('Schedule response saved', esc(classResponseMessage)) : ''}
-    <div class="summary-grid"><div class="card summary-card"><span class="summary-icon">⌂</span><div><div class="stat-label">ROOMS TRACKED</div><b>${devices.length}</b><small>${isAdmin() ? 'All controller slots' : 'Assigned devices'}</small></div></div><div class="card summary-card"><span class="summary-icon">◉</span><div><div class="stat-label">ONLINE NOW</div><b>${online}</b><small>Recent heartbeats</small></div></div><div class="card summary-card"><span class="summary-icon">✓</span><div><div class="stat-label">PROVISIONED</div><b>${provisioned}<small class="summary-total"> / ${devices.length}</small></b><small>Ready for device sync</small></div></div></div>
+    <div class="summary-grid"><div class="card summary-card"><span class="summary-icon">⌂</span><div><div class="stat-label">ROOMS TRACKED</div><b>${assignedDeviceCount}</b><small>${isAdmin() ? 'All controller slots' : 'Assigned devices in your timetable'}</small></div></div><div class="card summary-card"><span class="summary-icon">◉</span><div><div class="stat-label">ONLINE NOW</div><b>${online}</b><small>Recent heartbeats</small></div></div><div class="card summary-card"><span class="summary-icon">✓</span><div><div class="stat-label">PROVISIONED</div><b>${provisioned}<small class="summary-total"> / ${devices.length}</small></b><small>Ready for device sync</small></div></div></div>
     <section class="card room-card overview-links"><div class="card-heading"><div><div class="eyebrow">ROOM OVERVIEW</div><h1>${isAdmin() ? 'Choose a workspace' : 'Your assigned devices'}</h1></div></div><p class="muted">${overviewCopy}</p>${workspace}</section>
     ${!isAdmin() ? `<section class="assigned-room-list"><div class="section-heading"><h2>Assigned device status</h2><small>Temperature, humidity, and AC state</small></div>${assignedRooms || '<div class="card empty">No active schedule slot right now. Your devices appear during their assigned day and time.</div>'}</section>${checkinCards}` : ''}
     ${heldDeviceIds.size ? `<section class="card alerts-card schedule-held"><strong>Schedule paused</strong><p>Paused for: ${[...heldDeviceIds].map(deviceName).map(esc).join(', ')}. These controllers will not turn on from their local schedules until you resume them.</p><small>The pause syncs the next time each controller connects.</small><div class="confirmation-actions"><button class="secondary resume-schedule" type="button">Resume schedules</button></div></section>` : ''}
