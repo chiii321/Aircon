@@ -3,31 +3,33 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#102d5c">
+  <meta name="theme-color" content="#f5f6f8">
   <title>INUVAIR · Control center</title>
   <link rel="icon" type="image/svg+xml" href="assets/admin-logo-final.svg">
   <link rel="apple-touch-icon" href="assets/inuvair-logo.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <a class="skip-link" href="#screen">Skip to content</a>
+  <p id="page-loading" class="page-loading" role="status">Loading your dashboard…</p>
+  <noscript><p class="page-loading">Enable JavaScript to sign in and view your rooms.</p></noscript>
   <div class="app" id="app" hidden>
     <aside class="sidebar">
       <div class="brand"><img class="brand-mark" src="assets/admin-logo-final.svg" alt=""><span class="brand-name">INUVAIR</span></div>
-      <div class="nav-label">WORKSPACE</div>
       <nav aria-label="Main navigation">
-        <a href="#overview" data-route="overview" class="nav-link"><span aria-hidden="true">▦</span> Overview</a>
-        <a href="#devices" data-route="devices" class="nav-link"><span aria-hidden="true">▤</span> Devices</a>
-        <a href="#monitoring" data-route="monitoring" class="nav-link"><span aria-hidden="true">◉</span> Monitoring</a>
-        <a href="#scheduling" data-route="scheduling" class="nav-link"><span aria-hidden="true">◷</span> Scheduling</a>
-        <a href="#history" data-route="history" class="nav-link"><span aria-hidden="true">↺</span> History</a>
-        <a href="#alerts" data-route="alerts" class="nav-link"><span aria-hidden="true">♧</span> Notifications</a>
-        <a href="#settings" data-route="settings" class="nav-link"><span aria-hidden="true">⚙</span> Settings</a>
+        <a href="#overview" data-route="overview" class="nav-link">Overview</a>
+        <a href="#devices" data-route="devices" class="nav-link">Devices</a>
+        <a href="#monitoring" data-route="monitoring" class="nav-link">Monitoring</a>
+        <a href="#scheduling" data-route="scheduling" class="nav-link">Scheduling</a>
+        <a href="#history" data-route="history" class="nav-link">History</a>
+        <a href="#alerts" data-route="alerts" class="nav-link">Notifications</a>
+        <a href="#settings" data-route="settings" class="nav-link">Settings</a>
       </nav>
-      <div class="sidebar-bottom"><button id="sign-out" class="nav-link logout-link" type="button"><span aria-hidden="true">⇥</span> Log out</button><div class="sidebar-foot"><div class="foot-dot"></div><div>Room climate system<small>Philippine time · UTC+8</small></div></div></div>
+      <div class="sidebar-bottom"><button id="sign-out" class="nav-link logout-link" type="button">Log out</button><div class="sidebar-foot"><div>Room climate system<small>Philippine time · UTC+8</small></div></div></div>
     </aside>
     <div class="content">
       <div class="topbar"><span>INUVAIR <span class="top-separator">/</span> <span id="breadcrumb">Overview</span></span><div class="account"><span id="account-email"></span></div></div>
-      <main id="screen" aria-live="polite"></main>
+      <main id="screen" tabindex="-1"></main>
     </div>
   </div>
   <script type="module" src="app.js"></script>
