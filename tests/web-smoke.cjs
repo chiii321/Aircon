@@ -154,6 +154,9 @@ export function createClient() {
     assert.equal(await page.getByText('Controls & schedule →',{exact:true}).count(),0);
     await page.evaluate(()=>{window.testExpiry=new Date(Date.now()+1500).toISOString();location.hash='alerts'});
     await page.getByRole('heading',{name:'Notifications',exact:true}).waitFor();
+    await page.getByRole('heading',{name:'Notification feed',exact:true}).waitFor();
+    assert.equal(await page.locator('.device-table').count(),0);
+    assert.equal(await page.locator('.alert-list').getByText('Laboratory',{exact:false}).count(),0);
     await page.evaluate(()=>{location.hash='overview'});
     await page.getByText('28.6 °C',{exact:true}).waitFor();
     await page.getByText('28.6 °C',{exact:true}).waitFor({state:'hidden',timeout:5000});
@@ -165,7 +168,7 @@ export function createClient() {
     await page.getByRole('button',{name:'Resume schedules'}).waitFor({state:'hidden'});
     assert.equal(await page.evaluate(()=>window.testWrites.at(-1).name),'respond_to_schedule_confirmation');
     await page.evaluate(()=>{window.testEmpty=true;location.hash='alerts'});
-    await page.getByText('No devices are assigned to this account.',{exact:true}).waitFor();
+    await page.getByText('No rooms are assigned to you at this time.',{exact:true}).waitFor();
     await page.evaluate(()=>{window.testRole='pending';location.hash='overview'});
     await page.getByRole('heading',{name:'Awaiting admin approval'}).waitFor();
     await page.evaluate(()=>{window.testError=true;location.hash='alerts'});
