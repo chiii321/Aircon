@@ -15,13 +15,18 @@
       <div class="brand"><img class="brand-mark" src="assets/admin-logo-final.svg" alt=""><span class="brand-name">INUVAIR</span></div>
       <div class="nav-label">WORKSPACE</div>
       <nav aria-label="Main navigation">
-        <a href="#overview" data-route="overview" class="nav-link"><span>▦</span> Overview</a>
-        <a href="#devices" data-route="devices" class="nav-link"><span>▤</span> Devices</a>
+        <a href="#overview" data-route="overview" class="nav-link"><span aria-hidden="true">▦</span> Overview</a>
+        <a href="#devices" data-route="devices" class="nav-link"><span aria-hidden="true">▤</span> Devices</a>
+        <a href="#monitoring" data-route="monitoring" class="nav-link"><span aria-hidden="true">◉</span> Monitoring</a>
+        <a href="#scheduling" data-route="scheduling" class="nav-link"><span aria-hidden="true">◷</span> Scheduling</a>
+        <a href="#history" data-route="history" class="nav-link"><span aria-hidden="true">↺</span> History</a>
+        <a href="#alerts" data-route="alerts" class="nav-link"><span aria-hidden="true">♧</span> Alerts</a>
+        <a href="#settings" data-route="settings" class="nav-link"><span aria-hidden="true">⚙</span> Settings</a>
       </nav>
-      <div class="sidebar-foot"><div class="foot-dot"></div><div>Room climate system<small>Philippine time · UTC+8</small></div></div>
+      <div class="sidebar-bottom"><button id="sign-out" class="nav-link logout-link" type="button"><span aria-hidden="true">⇥</span> Log out</button><div class="sidebar-foot"><div class="foot-dot"></div><div>Room climate system<small>Philippine time · UTC+8</small></div></div></div>
     </aside>
     <div class="content">
-      <div class="topbar"><span>INUVAIR <span class="top-separator">/</span> <span id="breadcrumb">Overview</span></span><div class="account"><span id="account-email"></span><button id="sign-out" class="text-button" hidden>Sign out</button></div></div>
+      <div class="topbar"><span>INUVAIR <span class="top-separator">/</span> <span id="breadcrumb">Overview</span></span><div class="account"><span id="account-email"></span></div></div>
       <main id="screen" aria-live="polite"></main>
     </div>
   </div>
