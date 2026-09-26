@@ -351,6 +351,12 @@ h1 em {
   box-shadow: 0 0 0 3px #d9f2ec;
 }
 
+.form-card input[readonly] {
+  background: #f1f6f5;
+  color: #607b7e;
+  cursor: not-allowed;
+}
+
 .form-submit {
   width: 100%;
   display: flex;
