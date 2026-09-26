@@ -81,7 +81,7 @@ function renderOverview() {
     ${classResponseMessage ? banner('Schedule response saved', esc(classResponseMessage)) : ''}
     <div class="summary-grid"><div class="card summary-card"><span class="summary-icon">⌂</span><div><div class="stat-label">ROOMS TRACKED</div><b>${devices.length}</b><small>${isAdmin() ? 'All controller slots' : 'Assigned devices'}</small></div></div><div class="card summary-card"><span class="summary-icon">◉</span><div><div class="stat-label">ONLINE NOW</div><b>${online}</b><small>Recent heartbeats</small></div></div><div class="card summary-card"><span class="summary-icon">✓</span><div><div class="stat-label">PROVISIONED</div><b>${provisioned}<small class="summary-total"> / ${devices.length}</small></b><small>Ready for device sync</small></div></div></div>
     <section class="card room-card overview-links"><div class="card-heading"><div><div class="eyebrow">ROOM OVERVIEW</div><h1>${isAdmin() ? 'Choose a workspace' : 'Your assigned devices'}</h1></div></div><p class="muted">${overviewCopy}</p>${workspace}</section>
-    ${!isAdmin() ? `<section class="assigned-room-list"><div class="section-heading"><h2>Assigned device status</h2><small>Temperature, humidity, and AC state</small></div>${assignedRooms || '<div class="card empty">No devices are assigned to this account.</div>'}</section>${checkinCards}` : ''}
+    ${!isAdmin() ? `<section class="assigned-room-list"><div class="section-heading"><h2>Assigned device status</h2><small>Temperature, humidity, and AC state</small></div>${assignedRooms || '<div class="card empty">No active schedule slot right now. Your devices appear during their assigned day and time.</div>'}</section>${checkinCards}` : ''}
     ${heldDeviceIds.size ? `<section class="card alerts-card schedule-held"><strong>Schedule paused</strong><p>Paused for: ${[...heldDeviceIds].map(deviceName).map(esc).join(', ')}. These controllers will not turn on from their local schedules until you resume them.</p><small>The pause syncs the next time each controller connects.</small><div class="confirmation-actions"><button class="secondary resume-schedule" type="button">Resume schedules</button></div></section>` : ''}
     <section class="card alerts-card"><div class="card-heading"><div><div class="eyebrow">NEEDS ATTENTION</div><h2>Notifications</h2></div><span class="alert-count">${attention}</span></div>${attention ? `<p class="alert-row"><span class="alert-mark">!</span><span><strong>${attention} assigned controller${attention === 1 ? '' : 's'} offline or awaiting setup</strong>${alertAction}</span><a href="#alerts" aria-label="Open notifications">→</a></p>` : '<p class="alert-clear">All assigned controllers have checked in recently.</p>'}<p class="alert-foot">Online status is based on a heartbeat in the last 30 seconds. Temperature is shown only when reported; AC response is not verified.</p></section></div>`
 }
@@ -92,6 +92,11 @@ function renderClassCheckins() {
 }
 
 function renderDevices() {
+  if (!isAdmin()) {
+    const rows = weeklyBookings.map(booking => `<tr><td>Room ${esc(booking.room_number)}</td><td>${esc(DAYS[booking.weekday - 1])}</td><td>${esc(booking.start_time.slice(0, 5))}–${esc(booking.end_time.slice(0, 5))}</td><td>${esc(booking.notes)}</td></tr>`).join('')
+    return `<div class="page">${pageHead('Your room assignments', 'Devices', 'Your imported weekly schedule in Philippine time. Live device information is available only during your assigned time slots.')}<section class="card panel"><h2>Your weekly schedule</h2>${weeklyLoadError ? '<p class="error-text">Could not load your schedule. Please try again.</p>' : ''}<div class="table-wrap" tabindex="0" role="region" aria-label="Your weekly schedule"><table class="device-table"><thead><tr><th>Room</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="empty">No schedule has been imported for your account.</td></tr>'}</tbody></table></div></section><section class="card panel"><h2>Currently accessible devices</h2><p class="muted">${devices.length ? 'View temperature, humidity, and AC state in your Overview.' : 'No active schedule slot right now. Device information becomes available when your assigned slot starts.'}</p><a class="secondary" href="#overview">View device status →</a></section></div>`
+  }
+
   return `<div class="page">${pageHead('Fleet view', 'All ESP32 controllers.', 'Eleven identified slots, with live data shown only when a controller reports in.')}${banner('Device 01 is the current prototype', 'The remaining slots have no credentials or hardware connection yet. Each future ESP32 needs its own token and matching firmware ID.', true)}<div class="section-heading"><h2>Device registry</h2><small>${devices.length} slots</small></div>${table(devices)}</div>`
 }
 
@@ -431,7 +436,7 @@ function render() {
   const current = route()
   const role = accessContext?.role
   document.querySelectorAll('[data-route]').forEach(link => {
-    link.hidden = role === 'pending' || role === 'unverified' || (role === 'authorized' && !['overview', 'alerts', 'settings'].includes(link.dataset.route))
+    link.hidden = role === 'pending' || role === 'unverified' || (role === 'authorized' && !(['overview', 'alerts', 'settings'].includes(link.dataset.route) || (link.dataset.route === 'devices' && weeklyBookings.length > 0)))
     link.classList.toggle('active', current === link.dataset.route || current.startsWith('device/') && link.dataset.route === 'devices')
   })
   breadcrumb.textContent = current.startsWith('device/') ? `Device ${selectedId()}` : ({ overview: 'Overview', devices: 'Devices', monitoring: 'Monitoring', scheduling: 'Scheduling', history: 'History', alerts: 'Notifications', 'user-access': 'User access', settings: 'Settings' }[current] || 'Overview')
@@ -443,7 +448,7 @@ function render() {
     return
   }
   if (role === 'pending') { screen.innerHTML = renderPendingApproval(); return }
-  if (role === 'authorized' && !['overview', 'alerts', 'settings'].includes(current)) { location.hash = 'overview'; return }
+  if (role === 'authorized' && !['overview', 'alerts', 'settings', 'devices'].includes(current)) { location.hash = 'overview'; return }
   if (role !== 'admin' && role !== 'authorized') { screen.innerHTML = `<div class="page">${banner('Could not verify account access', 'Sign out and sign in again. If this continues, contact the administrator.', true)}</div>`; return }
   const pages = { overview: renderOverview, devices: renderDevices, monitoring: renderMonitoring, scheduling: renderScheduling, history: renderHistory, alerts: renderAlerts, 'user-access': renderUserAccess, settings: renderSettings }
   screen.innerHTML = selectedId() ? renderDetail(selectedId()) : (pages[current] || renderOverview)()
@@ -517,7 +522,7 @@ async function refresh(force = false) {
     return
   }
   const current = route()
-  if (accessContext.role === 'authorized' && !['overview', 'alerts', 'settings'].includes(current)) {
+  if (accessContext.role === 'authorized' && !['overview', 'alerts', 'settings', 'devices'].includes(current)) {
     location.hash = 'overview'
     return
   }
@@ -545,10 +550,10 @@ async function refresh(force = false) {
     if (result.error) loadingError = result.error.message
     else accessUsers = Array.isArray(result.data) ? result.data : []
   }
-  if (!error && ['scheduling', 'user-access'].includes(current) && isAdmin()) {
+  if (!error && (accessContext.role === 'authorized' || (['scheduling', 'user-access'].includes(current) && isAdmin()))) {
     const result = await api.from('weekly_room_assignments').select('id,user_id,user_email,room_number,device_id,weekday,start_time,end_time,notes').order('weekday').order('start_time')
     weeklyLoadError = result.error ? 'Weekly bookings are unavailable. The database update must be installed before saving imports.' : ''
-    if (!result.error) weeklyBookings = result.data || []
+    weeklyBookings = result.error ? [] : result.data || []
   }
   const id = selectedId()
   if (id && !error) {
