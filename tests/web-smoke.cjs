@@ -15,7 +15,7 @@ window.testHold = false;
 window.testSession = location.pathname.endsWith('dashboard.html');
 const user = {id:'test-user',email:'room.operator@example.test'};
 const session = () => window.testSession ? {user} : null;
-const devices = () => window.testEmpty ? [] : [
+const devices = () => window.testEmpty || (window.testExpiry && Date.now() >= Date.parse(window.testExpiry)) ? [] : [
   {id:'esp32-01',name:'Classroom 01',model:'AUX',provisioned:true,last_seen_at:new Date().toISOString(),temperature_c:28.6,humidity_pct:64.2,schedule_hold:window.testHold},
   {id:'esp32-02',name:'Classroom 02',model:'AUX',provisioned:true,last_seen_at:'2026-01-01T00:00:00Z',temperature_c:27,humidity_pct:65},
   {id:'esp32-03',name:'Laboratory',provisioned:false}
@@ -31,7 +31,7 @@ export function createClient() {
     },
     rpc:async(name,args)=> {
       if(window.testError) throw new Error('Connection unavailable');
-      if(name==='get_my_access_context') return {data:{role:window.testRole}};
+      if(name==='get_my_access_context') return {data:{role:window.testRole,deviceIds:devices().map(device=>device.id),accessMode:'weekly',serverTime:new Date().toISOString(),expiresAt:window.testExpiry && Date.now()<Date.parse(window.testExpiry) ? window.testExpiry : null}};
       if(name==='admin_list_users') return {data:[{id:'test-member',email:'member@example.test',role:'authorized',deviceIds:['esp32-01']}]};
       if(name==='respond_to_schedule_confirmation') window.testHold=false;
       window.testWrites.push({name,args});return {data:null,error:null};
@@ -130,10 +130,9 @@ export function createClient() {
     await page.getByText('Schedule saved. The ESP32 will sync it on its next poll.').waitFor();
     assert.equal(await page.evaluate(()=>window.testWrites[1].value.on_time),'10:00');
     await page.evaluate(()=>{location.hash='user-access'});
-    await page.locator('.access-device-select').selectOption('esp32-02');
-    await page.getByRole('heading',{name:'Invite and manage users',exact:true}).click();
-    await page.waitForTimeout(8500);
-    assert.deepEqual(await page.locator('.access-device-select').evaluate(el=>[...el.selectedOptions].map(x=>x.value)),['esp32-02']);
+    assert.equal(await page.locator('.access-device-select').count(),0);
+    await page.locator('.assigned-schedule > summary').click();
+    await page.getByText('No room slots assigned. Upload a verified Excel timetable in Scheduling to grant access.',{exact:true}).waitFor();
     await page.evaluate(()=>{location.hash='settings'});
     await page.locator('#temperature-unit').selectOption('fahrenheit');
     await page.evaluate(()=>{location.hash='monitoring'});
@@ -153,6 +152,12 @@ export function createClient() {
     await page.waitForFunction(()=>location.hash==='#overview');
     assert.equal(await page.locator('#invite-form').count(),0);
     assert.equal(await page.getByText('Controls & schedule →',{exact:true}).count(),0);
+    await page.evaluate(()=>{window.testExpiry=new Date(Date.now()+1500).toISOString();location.hash='alerts'});
+    await page.getByRole('heading',{name:'Notifications',exact:true}).waitFor();
+    await page.evaluate(()=>{location.hash='overview'});
+    await page.getByText('28.6 °C',{exact:true}).waitFor();
+    await page.getByText('28.6 °C',{exact:true}).waitFor({state:'hidden',timeout:5000});
+    await page.evaluate(()=>{window.testExpiry=null});
     await page.evaluate(()=>{window.testHold=true;location.hash='alerts'});
     await page.getByRole('heading',{name:'Notifications',exact:true}).waitFor();
     await page.evaluate(()=>{location.hash='overview'});

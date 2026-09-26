@@ -25,6 +25,23 @@ let weeklyBookings = []
 let weeklyLoadError = ''
 let importMessage = ''
 let importBusy = false
+let accessExpiryTimer = null
+let accessExpiryDeadline = null
+const openAccessSchedules = new Set()
+screen.addEventListener('toggle', event => {
+  if (event.target.matches('.assigned-schedule')) {
+    if (event.target.open) openAccessSchedules.add(event.target.dataset.userId)
+    else openAccessSchedules.delete(event.target.dataset.userId)
+  }
+}, true)
+function clearExpiredRoomInfo() {
+  devices = []; commandHistory = []; classCheckins = []; heldDeviceIds = new Set()
+  render()
+  refresh(true)
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && accessExpiryDeadline != null && performance.now() >= accessExpiryDeadline) clearExpiredRoomInfo()
+})
 screen.addEventListener('input', event => { if (event.target.id !== 'temperature-unit') hasUnsavedEdits = true })
 screen.addEventListener('change', event => { if (event.target.id !== 'temperature-unit') hasUnsavedEdits = true })
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
@@ -220,8 +237,9 @@ function renderAccessManager() {
     const roleAction = admin
       ? `<p class="muted">Can view and control all devices.</p><button class="secondary change-user-role" type="button" data-user-id="${esc(user.id)}" data-role="authorized" ${adminCount <= 1 ? 'disabled' : ''}>Demote to authorized user</button>${adminCount <= 1 ? '<small class="access-help">The last admin cannot be demoted.</small>' : ''}`
       : approved ? `<button class="secondary change-user-role" type="button" data-user-id="${esc(user.id)}" data-role="admin">Promote to admin</button>` : ''
-    const selected = new Set(user.deviceIds || [])
-    const assignment = approved ? `<label class="settings-field" for="assigned-devices-${esc(user.id)}">Assigned devices</label><select id="assigned-devices-${esc(user.id)}" class="settings-select access-device-select" multiple size="4">${devices.map(d => `<option value="${esc(d.id)}" ${selected.has(d.id) ? 'selected' : ''}>${esc(d.name)} · ${esc(d.id)}</option>`).join('')}</select><small class="access-help">A controller can be assigned to one authorized user at a time.</small><div class="access-actions"><button class="secondary save-user-devices" type="button" data-user-id="${esc(user.id)}">Save assignments</button><button class="danger revoke-user" type="button" data-user-id="${esc(user.id)}">Revoke approval</button></div>` : `<p class="muted">This account cannot access devices until approved.</p><button class="primary approve-user" type="button" data-user-id="${esc(user.id)}">Approve user</button>`
+    const bookings = weeklyBookings.filter(booking => booking.user_id === user.id || booking.user_email.toLowerCase() === user.email.toLowerCase())
+    const bookingList = bookings.map(booking => `<li><strong>Room ${esc(booking.room_number)}</strong> · ${esc(deviceName(booking.device_id))}<br><small>${esc(DAYS[booking.weekday - 1])} · ${esc(booking.start_time.slice(0, 5))}–${esc(booking.end_time.slice(0, 5))} · Philippine time</small></li>`).join('')
+    const assignment = approved ? `<details class="assigned-schedule" data-user-id="${esc(user.id)}" ${openAccessSchedules.has(user.id) ? 'open' : ''}><summary class="secondary">View room schedule (${bookings.length})</summary><div class="assigned-schedule-content">${weeklyLoadError ? `<p class="muted">${esc(weeklyLoadError)}</p>` : bookingList ? `<ul>${bookingList}</ul>` : '<p class="muted">No room slots assigned. Upload a verified Excel timetable in Scheduling to grant access.</p>'}<p class="muted">Room information is available only during each scheduled slot.</p><a href="#scheduling">Manage Excel bookings →</a></div></details><div class="access-actions"><button class="danger revoke-user" type="button" data-user-id="${esc(user.id)}">Revoke approval</button></div>` : `<p class="muted">This account cannot access devices until approved.</p><button class="primary approve-user" type="button" data-user-id="${esc(user.id)}">Approve user</button>`
     return `<article class="user-access-card"><div class="panel-top"><div><strong>${esc(user.email)}</strong><small class="monitor-id">Account access${user.id === session?.user?.id ? ' · You' : ''}</small></div><span class="badge ${admin || approved ? 'online' : 'offline'}">${admin ? 'Admin' : approved ? 'Authorized' : 'Pending'}</span></div>${admin ? '' : assignment}<div class="access-actions">${roleAction}</div></article>`
   }
   const rows = [
@@ -232,7 +250,7 @@ function renderAccessManager() {
     const members = accessUsers.filter(user => user.role === group.role)
     return `<section class="user-role-group" aria-labelledby="role-group-${group.role}"><div class="section-heading"><h3 id="role-group-${group.role}">${group.title}</h3><small>${members.length} account${members.length === 1 ? '' : 's'}</small></div><div class="user-access-list">${members.map(userCard).join('') || `<p class="muted">${group.empty}</p>`}</div></section>`
   }).join('')
-  return `<section class="card access-manager"><div class="card-heading"><div><div class="eyebrow">ADMIN ONLY</div><h2>Invite and manage users</h2></div><small>${accessUsers.filter(user => user.role === 'authorized').length} approved</small></div><p class="muted">Create a personal signup link for an email address. After email confirmation, approve the account and assign the devices it can access.</p><form id="invite-form" class="invite-form"><label class="settings-field" for="invite-email">Invitee email address</label><div class="invite-controls"><input id="invite-email" type="email" autocomplete="email" placeholder="person@example.com" required><button class="secondary" type="submit">Create invite link</button></div></form><div id="invite-result" class="invite-result" hidden><label class="settings-field" for="invite-link">Share this registration link</label><div class="invite-controls"><input id="invite-link" type="url" readonly><button id="copy-invite" class="secondary" type="button">Copy link</button></div></div><div id="access-status" class="status-text" role="status" aria-live="polite"></div><div class="user-access-list">${rows || '<p class="alert-clear">No other accounts have signed up yet.</p>'}</div></section>`
+  return `<section class="card access-manager"><div class="card-heading"><div><div class="eyebrow">ADMIN ONLY</div><h2>Invite and manage users</h2></div><small>${accessUsers.filter(user => user.role === 'authorized').length} approved</small></div><p class="muted">Create a personal signup link for an email address. After email confirmation, approve the account. Upload its weekly room assignments through Excel in Scheduling.</p><form id="invite-form" class="invite-form"><label class="settings-field" for="invite-email">Invitee email address</label><div class="invite-controls"><input id="invite-email" type="email" autocomplete="email" placeholder="person@example.com" required><button class="secondary" type="submit">Create invite link</button></div></form><div id="invite-result" class="invite-result" hidden><label class="settings-field" for="invite-link">Share this registration link</label><div class="invite-controls"><input id="invite-link" type="url" readonly><button id="copy-invite" class="secondary" type="button">Copy link</button></div></div><div id="access-status" class="status-text" role="status" aria-live="polite"></div><div class="user-access-list">${rows || '<p class="alert-clear">No other accounts have signed up yet.</p>'}</div></section>`
 }
 
 function renderPendingApproval() {
@@ -314,7 +332,7 @@ function attachAccessManager() {
     const { error } = await api.rpc('admin_set_user_authorized', { target_user_id: button.dataset.userId, approved: true })
     if (error) { button.disabled = false; return setMessage('access-status', error.message, true) }
     await refresh(true)
-    setMessage('access-status', 'User approved. Assign the devices they are allowed to view.')
+    setMessage('access-status', 'User approved. Use the Excel timetable in Scheduling to assign their weekly room access.')
   })
   document.querySelectorAll('.change-user-role').forEach(button => button.onclick = async () => {
     const user = accessUsers.find(account => account.id === button.dataset.userId)
@@ -333,15 +351,6 @@ function attachAccessManager() {
       setMessage('access-status', error.message || 'Could not change the role. Please try again.', true)
     }
   })
-  document.querySelectorAll('.save-user-devices').forEach(button => button.onclick = async () => {
-    button.disabled = true
-    const card = button.closest('.user-access-card')
-    const deviceIds = [...card.querySelector('.access-device-select').selectedOptions].map(option => option.value)
-    const { error } = await api.rpc('admin_set_user_devices', { target_user_id: button.dataset.userId, device_ids: deviceIds })
-    if (error) { button.disabled = false; return setMessage('access-status', error.message, true) }
-    await refresh(true)
-    setMessage('access-status', 'Device assignments saved.')
-  })
   document.querySelectorAll('.revoke-user').forEach(button => button.onclick = async () => {
     button.disabled = true
     const { error } = await api.rpc('admin_set_user_authorized', { target_user_id: button.dataset.userId, approved: false })
@@ -352,6 +361,14 @@ function attachAccessManager() {
 }
 
 function render() {
+  if (accessContext?.role === 'authorized' && Array.isArray(accessContext.deviceIds)) {
+    const allowed = new Set(accessContext.deviceIds)
+    devices = devices.filter(device => allowed.has(device.id))
+    commandHistory = commandHistory.filter(command => allowed.has(command.device_id))
+    classCheckins = classCheckins.filter(checkin => allowed.has(checkin.device_id))
+    heldDeviceIds = new Set([...heldDeviceIds].filter(id => allowed.has(id)))
+  }
+  if (accessContext?.role === 'authorized' && accessExpiryDeadline != null && performance.now() >= accessExpiryDeadline) { devices = []; commandHistory = []; classCheckins = []; heldDeviceIds = new Set() }
   accountEmail.textContent = session?.user?.email || ''
   signOut.hidden = !session
   const current = route()
@@ -415,6 +432,7 @@ async function refresh(force = false) {
   if (!force && hasUnsavedEdits) return
   loadingError = ''
   try {
+  const accessRequestStarted = performance.now()
   const accessResult = await api.rpc('get_my_access_context')
   if (accessResult.error || !['admin', 'authorized', 'pending'].includes(accessResult.data?.role)) {
     accessContext = { role: 'unverified' }
@@ -424,6 +442,13 @@ async function refresh(force = false) {
     return
   }
   accessContext = accessResult.data
+  clearTimeout(accessExpiryTimer)
+  accessExpiryDeadline = null
+  if (accessContext.role === 'authorized' && accessContext.expiresAt && accessContext.serverTime) {
+    const remaining = Math.max(0, Date.parse(accessContext.expiresAt) - Date.parse(accessContext.serverTime) - (performance.now() - accessRequestStarted))
+    accessExpiryDeadline = performance.now() + remaining
+    accessExpiryTimer = setTimeout(clearExpiredRoomInfo, remaining)
+  }
   if (accessContext.role === 'pending') {
     devices = []
     schedules = []
@@ -462,8 +487,8 @@ async function refresh(force = false) {
     if (result.error) loadingError = result.error.message
     else accessUsers = Array.isArray(result.data) ? result.data : []
   }
-  if (!error && current === 'scheduling' && isAdmin()) {
-    const result = await api.from('weekly_room_assignments').select('id,user_email,room_number,device_id,weekday,start_time,end_time,notes').order('weekday').order('start_time')
+  if (!error && ['scheduling', 'user-access'].includes(current) && isAdmin()) {
+    const result = await api.from('weekly_room_assignments').select('id,user_id,user_email,room_number,device_id,weekday,start_time,end_time,notes').order('weekday').order('start_time')
     weeklyLoadError = result.error ? 'Weekly bookings are unavailable. The database update must be installed before saving imports.' : ''
     if (!result.error) weeklyBookings = result.data || []
   }

@@ -68,8 +68,9 @@ assert(['127.0.0.1', 'localhost'].includes(new URL(base).hostname));
     await page.locator('#save-import').click();
     for (const theme of ['light','dark']) {
       await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme);
+      await page.evaluate(() => Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {}))));
       const dialogA11y = await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
-      assert.deepEqual(dialogA11y.violations.map(v=>v.id),[]);
+      assert.deepEqual(dialogA11y.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary}))})),[]);
     }
     await page.locator('#confirm-import').click();
     await page.getByText('2 bookings saved; 0 duplicates skipped.',{exact:true}).waitFor();
