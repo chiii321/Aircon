@@ -306,7 +306,7 @@ function renderAccessManager() {
     const members = accessUsers.filter(user => user.role === group.role)
     return `<section class="user-role-group" aria-labelledby="role-group-${group.role}"><div class="section-heading"><h3 id="role-group-${group.role}">${group.title}</h3><small>${members.length} account${members.length === 1 ? '' : 's'}</small></div><div class="user-access-list">${members.map(userCard).join('') || `<p class="muted">${group.empty}</p>`}</div></section>`
   }).join('')
-  return `<section class="card access-manager"><div class="card-heading"><div><div class="eyebrow">ADMIN ONLY</div><h2>Invite and manage users</h2></div><small>${accessUsers.filter(user => user.role === 'authorized').length} approved</small></div><p class="muted">Create a personal signup link for an email address. After email confirmation, approve the account. Upload its weekly room assignments through Excel in Scheduling.</p><form id="invite-form" class="invite-form"><label class="settings-field" for="invite-email">Invitee email address</label><div class="invite-controls"><input id="invite-email" type="email" autocomplete="email" placeholder="person@example.com" required><button class="secondary" type="submit">Create invite link</button></div></form><div id="invite-result" class="invite-result" hidden><label class="settings-field" for="invite-link">Share this registration link</label><div class="invite-controls"><input id="invite-link" type="url" readonly><button id="copy-invite" class="secondary" type="button">Copy link</button></div></div><div id="access-status" class="status-text" role="status" aria-live="polite"></div><div class="user-access-list">${rows || '<p class="alert-clear">No other accounts have signed up yet.</p>'}</div></section>`
+  return `<section class="card access-manager"><div class="card-heading"><div><div class="eyebrow">ADMIN ONLY</div><h2>Invite and manage users</h2></div><small>${accessUsers.filter(user => user.role === 'authorized').length} approved</small></div><p class="muted">Email a personal registration link with a welcome message. After email confirmation, approve the account. Upload its weekly room assignments through Excel in Scheduling.</p><form id="invite-form" class="invite-form"><label class="settings-field" for="invite-email">Invitee email address</label><div class="invite-controls"><input id="invite-email" type="email" autocomplete="email" placeholder="person@example.com" required><button id="email-registration-link" class="primary" type="submit">Email registration link</button></div></form><div id="access-status" class="status-text" role="status" aria-live="polite"></div><div class="user-access-list">${rows || '<p class="alert-clear">No other accounts have signed up yet.</p>'}</div></section>`
 }
 
 function renderPendingApproval() {
@@ -363,33 +363,10 @@ function attachDetail(id) {
 
 function attachAccessManager() {
   const inviteForm = document.getElementById('invite-form')
-  inviteForm.onsubmit = event => {
+  const emailButton = document.getElementById('email-registration-link')
+  inviteForm.onsubmit = async event => {
     event.preventDefault()
-    const email = document.getElementById('invite-email').value.trim().toLowerCase()
-    const link = new URL('https://inuvair.tech/register.html')
-    link.searchParams.set('email', email)
-    const result = document.getElementById('invite-result')
-    document.getElementById('invite-link').value = link.href
-    result.hidden = false
-    setMessage('access-status', 'Link created with the email prefilled. Share it directly with the intended recipient; it is not an expiring or revocable invitation. The recipient still needs email confirmation and your approval.')
-  }
-  document.getElementById('copy-invite').onclick = async () => {
-    const button = document.getElementById('copy-invite')
-    try {
-      await navigator.clipboard.writeText(document.getElementById('invite-link').value)
-      setMessage('access-status', 'Invite link copied.')
-    } catch {
-      setMessage('access-status', 'Copy was blocked by the browser. Select and copy the link above.', true)
-    }
-    button.blur()
-  }
-  const emailButton = document.createElement('button')
-  emailButton.type = 'button'
-  emailButton.className = 'primary'
-  emailButton.textContent = 'Email registration link'
-  inviteForm.querySelector('.invite-controls').append(emailButton)
-  emailButton.onclick = async () => {
-    if (!inviteForm.reportValidity()) return
+    if (emailButton.disabled || !inviteForm.reportValidity()) return
     emailButton.disabled = true
     setMessage('access-status', 'Sending invitation…')
     try {
