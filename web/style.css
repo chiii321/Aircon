@@ -38,15 +38,18 @@ button {
   height: 100vh;
   height: 100dvh;
   display: grid;
-  grid-template-columns: 210px 1fr;
+  grid-template-columns: 238px 1fr;
   overflow: hidden;
 }
 
 .sidebar {
-  background: var(--surface);
-  color: var(--ink);
-  border-right: 1px solid var(--line);
-  padding: 20px 14px;
+  background-color: #17234e;
+  background-image: url("assets/sidebar-facets.png");
+  background-size: cover;
+  background-position: center;
+  color: #f4f6ff;
+  border-right: 1px solid #26335f;
+  padding: 26px 18px 20px;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -57,15 +60,17 @@ button {
 
 .brand {
   font-family: Mokoto, sans-serif;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 400;
   letter-spacing: .03em;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 8px;
-  color: var(--brand);
+  gap: 10px;
+  padding: 0 2px;
+  color: #ffd514;
 }
+
+.sidebar .brand-name { color: #ffd514; }
 
 .brand-mark {
   display: block;
@@ -84,24 +89,24 @@ button {
 
 .nav-label {
   font-size: 10px;
-  color: var(--muted);
+  color: #9ca9ce;
   letter-spacing: .16em;
   font-weight: 800;
-  margin: clamp(24px, 4vh, 36px) 10px 10px;
+  margin: clamp(30px, 5vh, 44px) 10px 12px;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 10px 12px;
-  margin: 3px 0;
-  border-radius: 5px;
-  color: var(--muted);
+  padding: 11px 13px;
+  margin: 4px 0;
+  border-radius: 8px;
+  color: #d5d9e8;
   text-decoration: none;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
-  transition: background .15s, color .15s;
+  transition: background .15s, color .15s, box-shadow .15s;
 }
 
 .nav-link span {
@@ -110,32 +115,37 @@ button {
   text-align: center;
 }
 
+.sidebar nav { margin-top: 26px; }
+.nav-icon { width: 17px; height: 17px; flex: 0 0 17px; filter: brightness(0) invert(1); opacity: .88; }
+
 .nav-link:hover,
 .nav-link.active {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: #30439b;
+  color: #fff;
 }
 
-.nav-link.active { box-shadow: inset 3px 0 var(--sunshine); }
+.nav-link.active { box-shadow: 0 7px 18px #09133755; }
+.nav-link:focus-visible { outline-color: #ffe16a; }
 
-.sidebar-bottom { margin-top:auto; padding-top:14px; }
-.sidebar-bottom .sidebar-foot { margin-top:12px; }
-.logout-link { width:100%; border:0; background:transparent; text-align:left; }
-.logout-link:hover { background:var(--soft); }
+.sidebar-bottom { margin-top:auto; padding-top:14px; border-top:1px solid #ffffff20; }
+.sidebar-bottom .sidebar-foot { margin-top:12px; border-top:0; }
+.logout-link { width:100%; border:0; background:transparent; text-align:left; color:#d5d9e8; }
+.logout-link:hover { background:#ffffff12; }
 
 .sidebar-foot {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid #ffffff20;
   margin-top: auto;
   padding: 18px 8px 0;
   display: flex;
   gap: 9px;
   font-size: 11.5px;
   font-weight: 700;
+  color: #e5e8f3;
 }
 
 .sidebar-foot small {
   display: block;
-  color: var(--muted);
+  color: #abb6d3;
   font-weight: 400;
   margin-top: 3px;
 }
@@ -756,10 +766,10 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     grid-template-columns: 1fr;
   }
   .sidebar {
-    padding: 20px 10px;
+    padding: 20px 12px;
   }
   .app {
-    grid-template-columns: 180px 1fr;
+    grid-template-columns: 210px 1fr;
   }
 }
 
@@ -775,6 +785,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .sidebar {
     height: auto;
     padding: 12px 16px;
+    background-size: auto 520px;
+    background-position: center top;
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -801,6 +813,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     display: flex;
     gap: 4px;
     flex: 0 0 auto;
+    margin-top: 0;
   }
   .sidebar-bottom { display:contents; }
   .sidebar-bottom .sidebar-foot { display:none; }
@@ -808,6 +821,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
     margin: 0;
     padding: 7px 10px;
     font-size: 12px;
+    white-space: nowrap;
   }
   .nav-link span {
     display: none;
