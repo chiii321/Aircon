@@ -52,8 +52,12 @@ body { min-height:100dvh; display:flex; flex-direction:column; background:radial
   .public-footer { flex-wrap:wrap; gap:8px; }
 }
 
-/* Login-only preview: a quiet branded panel beside the existing form. */
-[data-auth-mode="login"] .auth-main {
+/* Shared welcome and login layout. */
+.welcome-page .welcome-access { width: auto; text-align: left; }
+.welcome-page .welcome-label { letter-spacing: .08em; margin-bottom: 16px; }
+.welcome-page .welcome-sign-in { width: 100%; min-height: 48px; margin: 8px 0 0; }
+.welcome-page .form-footer { margin-bottom: 0; }
+:is([data-auth-mode="login"], .welcome-page) .auth-main {
   flex: 0 0 auto;
   width: min(980px, calc(100% - 64px));
   grid-template-columns: 1fr 1.08fr;
@@ -66,7 +70,7 @@ body { min-height:100dvh; display:flex; flex-direction:column; background:radial
   border-radius: 18px;
   box-shadow: 0 24px 64px var(--shadow);
 }
-[data-auth-mode="login"] .auth-intro {
+:is([data-auth-mode="login"], .welcome-page) .auth-intro {
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -75,7 +79,7 @@ body { min-height:100dvh; display:flex; flex-direction:column; background:radial
   background: #22365c url("assets/sidebar-facets.png") center / cover;
   color: #f2f6ff;
 }
-[data-auth-mode="login"] .auth-intro h1 {
+:is([data-auth-mode="login"], .welcome-page) .auth-intro h1 {
   font-family: Mokoto, sans-serif;
   font-size: clamp(24px, 2.2vw, 30px);
   font-weight: 400;
@@ -84,8 +88,8 @@ body { min-height:100dvh; display:flex; flex-direction:column; background:radial
   max-width: none;
   text-wrap: balance;
 }
-[data-auth-mode="login"] .auth-intro > p { color: #dce6f6; font-size: 17px; font-weight: 500; line-height: 1.7; margin: 0; }
-[data-auth-mode="login"] .form-card {
+:is([data-auth-mode="login"], .welcome-page) .auth-intro > p { color: #dce6f6; font-size: 17px; font-weight: 500; line-height: 1.7; margin: 0; }
+:is([data-auth-mode="login"], .welcome-page) .form-card {
   align-self: center;
   padding: 48px;
   border: 0;
@@ -93,13 +97,13 @@ body { min-height:100dvh; display:flex; flex-direction:column; background:radial
   box-shadow: none;
   background: transparent;
 }
-[data-auth-mode="login"] .form-card h2 { font-size: 26px; font-weight: 600; }
-[data-auth-mode="login"] .form-card input { min-height: 48px; background: var(--bg); }
-[data-auth-mode="login"] .form-submit { min-height: 48px; }
+:is([data-auth-mode="login"], .welcome-page) .form-card h2 { font-size: 26px; font-weight: 600; }
+:is([data-auth-mode="login"], .welcome-page) .form-card input { min-height: 48px; background: var(--bg); }
+:is([data-auth-mode="login"], .welcome-page) .form-submit { min-height: 48px; }
 @media (max-width: 760px) {
-  [data-auth-mode="login"] .auth-main { width: calc(100% - 40px); max-width: 480px; grid-template-columns: 1fr; margin: 20px auto 32px; }
-  [data-auth-mode="login"] .auth-intro { padding: 30px 28px; }
-  [data-auth-mode="login"] .auth-intro h1 { font-size: 24px; margin-bottom: 14px; }
-  [data-auth-mode="login"] .auth-intro > p { font-size: 15px; margin-bottom: 0; }
-  [data-auth-mode="login"] .form-card { padding: 30px 28px; }
+  :is([data-auth-mode="login"], .welcome-page) .auth-main { width: calc(100% - 40px); max-width: 480px; grid-template-columns: 1fr; margin: 20px auto 32px; }
+  :is([data-auth-mode="login"], .welcome-page) .auth-intro { padding: 30px 28px; }
+  :is([data-auth-mode="login"], .welcome-page) .auth-intro h1 { font-size: 24px; margin-bottom: 14px; }
+  :is([data-auth-mode="login"], .welcome-page) .auth-intro > p { font-size: 15px; margin-bottom: 0; }
+  :is([data-auth-mode="login"], .welcome-page) .form-card { padding: 30px 28px; }
 }
