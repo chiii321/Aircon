@@ -970,3 +970,9 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .invite-controls button { width: 100%; }
   .page > .card + .card { margin-top: 16px; }
 }
+.user-access-card .access-actions:has(.change-user-role[data-role="authorized"]) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.user-access-card .access-actions .change-user-role[data-role="authorized"] { justify-self: end; }
+.user-access-card .access-actions:has(.change-user-role[data-role="authorized"]) > .access-help { grid-column: 1 / -1; text-align: right; }
+@media (max-width: 600px) {
+  .user-access-card .access-actions:has(.change-user-role[data-role="authorized"]) { grid-template-columns: minmax(0, 1fr); }
+}
