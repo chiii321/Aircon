@@ -6,6 +6,15 @@ const form = document.getElementById('auth-form')
 const status = document.getElementById('auth-status')
 const submit = form.querySelector('button[type="submit"]')
 
+function authErrorMessage(error) {
+  const message = String(error?.message || '')
+  const isEmailLimit = error?.status === 429 || /over_email_send_rate_limit|email rate limit exceeded/i.test(message)
+  if (mode === 'register' && isEmailLimit) {
+    return 'Confirmation emails are temporarily rate-limited. Check your inbox for a message from an earlier attempt, or try again later.'
+  }
+  return message || 'We could not complete that request. Please try again.'
+}
+
 const current = await api.auth.getSession()
 if (current.data.session) location.replace('dashboard.html')
 
@@ -16,15 +25,21 @@ form.addEventListener('submit', async event => {
   status.textContent = mode === 'register' ? 'Creating your account…' : 'Signing you in…'
   const email = form.elements.email.value.trim()
   const password = form.elements.password.value
-  const result = mode === 'register'
-    ? await api.auth.signUp({ email, password, options: { emailRedirectTo: new URL('dashboard.html', location.href).href } })
-    : await api.auth.signInWithPassword({ email, password })
-  submit.disabled = false
-  if (result.error) {
+  try {
+    const result = mode === 'register'
+      ? await api.auth.signUp({ email, password, options: { emailRedirectTo: new URL('dashboard.html', location.href).href } })
+      : await api.auth.signInWithPassword({ email, password })
+    if (result.error) {
+      status.classList.add('error')
+      status.textContent = authErrorMessage(result.error)
+      return
+    }
+    if (mode === 'register') status.textContent = 'Check your inbox to confirm your email, then sign in.'
+    else location.replace('dashboard.html')
+  } catch (error) {
     status.classList.add('error')
-    status.textContent = result.error.message
-    return
+    status.textContent = authErrorMessage(error)
+  } finally {
+    submit.disabled = false
   }
-  if (mode === 'register') status.textContent = 'Check your inbox to confirm your email, then sign in.'
-  else location.replace('dashboard.html')
 })
