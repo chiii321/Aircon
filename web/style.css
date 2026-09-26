@@ -4,6 +4,14 @@
   background: #f4f5f7;
 }
 
+@font-face {
+  font-family: 'Mokoto';
+  src: url('assets/Mokoto.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -43,9 +51,10 @@ button {
 }
 
 .brand {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: .12em;
+  font-family: 'Mokoto', Inter, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: .03em;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -53,14 +62,13 @@ button {
 }
 
 .brand-mark {
-  display: grid;
-  place-items: center;
-  background: transparent;
-  color: #f4d41a;
-  width: 24px;
-  height: 28px;
-  border-radius: 0;
-  font-size: 19px;
+  display: block;
+  background: white;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  object-fit: contain;
+  flex: 0 0 30px;
 }
 
 .accent {
@@ -152,6 +160,8 @@ button {
   letter-spacing: .1em;
 }
 
+.topbar > span:first-child { font-family:'Mokoto',Inter,sans-serif; letter-spacing:.04em; font-weight:400; }
+
 .top-separator {
   color: #c3d2d6;
   margin: 0 8px;
@@ -186,8 +196,8 @@ button {
 }
 
 .overview-page { max-width: 1080px; padding-top: clamp(10px, 1.5vh, 20px); }
-.overview-brand { display:flex; align-items:center; justify-content:center; gap:7px; height:58px; color:#17386c; font-size:15px; letter-spacing:.17em; font-weight:700; }
-.overview-brand .brand-symbol { color:#e3c812; font-size:26px; font-weight:900; line-height:1; }
+.overview-brand { display:flex; align-items:center; justify-content:center; gap:7px; height:58px; color:#35458e; font-family:'Mokoto',Inter,sans-serif; font-size:14px; letter-spacing:.03em; font-weight:400; }
+.overview-brand .brand-symbol { display:block; width:34px; height:34px; object-fit:contain; border-radius:8px; background:#fff; border:1px solid #e6eaf0; }
 .brand-caption { display:none; }
 .summary-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:13px; margin:0 0 14px; }
 .summary-card { display:flex; align-items:center; gap:13px; min-height:88px; padding:14px 18px; }
@@ -237,6 +247,12 @@ button {
   letter-spacing: -.055em;
   line-height: 1.15;
   margin: 6px 0 6px;
+}
+
+.page h1, .section-heading h2, .panel h2, .card-heading h1, .card-heading h2 {
+  font-family: 'Mokoto', Inter, sans-serif;
+  font-weight: 400;
+  letter-spacing: .015em;
 }
 
 .lead {
@@ -659,6 +675,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .brand-mark {
     width: 27px;
     height: 27px;
+    flex-basis: 27px;
     font-size: 17px;
   }
   .nav-label, .sidebar-foot {

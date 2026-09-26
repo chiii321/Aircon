@@ -1,5 +1,13 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 
+@font-face {
+  font-family: 'Mokoto';
+  src: url('assets/Mokoto.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 :root {
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: #193c45;
@@ -46,25 +54,25 @@ button, input {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-family: 'Manrope', sans-serif;
+  font-family: 'Mokoto', 'Manrope', sans-serif;
   font-size: clamp(16px, 1.7vw, 19px);
   font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: .04em;
   text-decoration: none;
 }
 
 .brand-symbol {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 32px;
-  border-radius: 0;
-  background: transparent;
-  color: #e0c816;
-  font-size: 25px;
-  font-weight: 900;
-  letter-spacing: 0;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #e6eaf0;
+  border-radius: 8px;
+  background: #fff;
+  object-fit: contain;
 }
+
+.brand-name { color: #35458e; }
 
 .brand-dot {
   color: #41b9aa;
@@ -138,6 +146,8 @@ h1, h2, p {
 h1, h2, .choice-card strong {
   font-family: 'Manrope', sans-serif;
 }
+
+h1, h2 { font-family: 'Mokoto', 'Manrope', sans-serif; font-weight: 400; letter-spacing: .015em; }
 
 h1 {
   font-size: clamp(30px, 3.6vw, 46px);
