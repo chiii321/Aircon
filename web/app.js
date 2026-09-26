@@ -203,10 +203,13 @@ function renderAlerts() {
 
 function renderSettings() {
   const unit = localStorage.getItem('temperature-unit') === 'fahrenheit' ? 'fahrenheit' : 'celsius'
-  return `<div class="page">${pageHead('Preferences', 'Settings', 'Manage access and display preferences for this browser session.')}
-    ${isAdmin() ? renderAccessManager() : ''}
+  return `<div class="page">${pageHead('Preferences', 'Settings', 'Manage display preferences and review system information.')}
     <section class="card settings-card"><div class="card-heading"><div><div class="eyebrow">DISPLAY</div><h2>Temperature unit</h2></div></div><p class="muted">Choose how reported temperatures appear across Overview, Devices, and Monitoring.</p><label class="settings-field" for="temperature-unit">Temperature</label><select id="temperature-unit" class="settings-select"><option value="celsius" ${unit === 'celsius' ? 'selected' : ''}>Celsius (°C)</option><option value="fahrenheit" ${unit === 'fahrenheit' ? 'selected' : ''}>Fahrenheit (°F)</option></select></section>
     <section class="card settings-card"><div class="card-heading"><div><div class="eyebrow">SYSTEM</div><h2>Connection and schedule</h2></div></div><dl class="settings-list"><div><dt>Account</dt><dd>${esc(session?.user?.email || 'Signed in')}</dd></div><div><dt>Schedule time zone</dt><dd>Asia/Manila (UTC+8)</dd></div><div><dt>Online threshold</dt><dd>Heartbeat within 30 seconds</dd></div><div><dt>Dashboard refresh</dt><dd>Every 8 seconds</dd></div></dl></section></div>`
+}
+
+function renderUserAccess() {
+  return `<div class="page">${pageHead('Administration', 'User access', 'Invite users, approve accounts, manage roles, and assign room access.')}${renderAccessManager()}</div>`
 }
 
 function renderAccessManager() {
@@ -349,7 +352,7 @@ function render() {
     link.hidden = role === 'pending' || role === 'unverified' || (role === 'authorized' && !['overview', 'alerts'].includes(link.dataset.route))
     link.classList.toggle('active', current === link.dataset.route || current.startsWith('device/') && link.dataset.route === 'devices')
   })
-  breadcrumb.textContent = current.startsWith('device/') ? `Device ${selectedId()}` : ({ overview: 'Overview', devices: 'Devices', monitoring: 'Monitoring', scheduling: 'Scheduling', history: 'History', alerts: 'Notifications', settings: 'Settings' }[current] || 'Overview')
+  breadcrumb.textContent = current.startsWith('device/') ? `Device ${selectedId()}` : ({ overview: 'Overview', devices: 'Devices', monitoring: 'Monitoring', scheduling: 'Scheduling', history: 'History', alerts: 'Notifications', 'user-access': 'User access', settings: 'Settings' }[current] || 'Overview')
   if (!session) { location.replace('login.html'); return }
   document.getElementById('app').hidden = false
   if (loadingError) {
@@ -360,13 +363,13 @@ function render() {
   if (role === 'pending') { screen.innerHTML = renderPendingApproval(); return }
   if (role === 'authorized' && !['overview', 'alerts'].includes(current)) { location.hash = 'overview'; return }
   if (role !== 'admin' && role !== 'authorized') { screen.innerHTML = `<div class="page">${banner('Could not verify account access', 'Sign out and sign in again. If this continues, contact the administrator.', true)}</div>`; return }
-  const pages = { overview: renderOverview, devices: renderDevices, monitoring: renderMonitoring, scheduling: renderScheduling, history: renderHistory, alerts: renderAlerts, settings: renderSettings }
+  const pages = { overview: renderOverview, devices: renderDevices, monitoring: renderMonitoring, scheduling: renderScheduling, history: renderHistory, alerts: renderAlerts, 'user-access': renderUserAccess, settings: renderSettings }
   screen.innerHTML = selectedId() ? renderDetail(selectedId()) : (pages[current] || renderOverview)()
   document.getElementById('page-loading')?.setAttribute('hidden', '')
   hasUnsavedEdits = false
   attachTableLinks()
   if (selectedId() && devices.some(d => d.id === selectedId())) attachDetail(selectedId())
-  if (current === 'settings' && isAdmin()) attachAccessManager()
+  if (current === 'user-access' && isAdmin()) attachAccessManager()
   if (current === 'scheduling' && isAdmin()) attachScheduleImport()
   if (current === 'overview' || current === 'alerts') attachClassConfirmation()
   const unitSelect = document.getElementById('temperature-unit')
@@ -446,7 +449,7 @@ async function refresh(force = false) {
     if (result.error) loadingError = result.error.message
     else commandHistory = result.data || []
   }
-  if (!error && ['settings', 'scheduling'].includes(current) && isAdmin()) {
+  if (!error && ['user-access', 'scheduling'].includes(current) && isAdmin()) {
     const result = await api.rpc('admin_list_users')
     if (result.error) loadingError = result.error.message
     else accessUsers = Array.isArray(result.data) ? result.data : []

@@ -107,7 +107,7 @@ export function createClient() {
         await page.goto(base+'/dashboard.html');
         await page.locator('#breadcrumb').waitFor();
         assert.equal(await page.locator('#breadcrumb').innerText(),'Overview');
-        for (const route of ['overview','devices','monitoring','scheduling','history','alerts','settings','device/esp32-01']) {
+        for (const route of ['overview','devices','monitoring','scheduling','history','alerts','user-access','settings','device/esp32-01']) {
           await page.evaluate(route=>{location.hash=route},route);
           await page.waitForTimeout(150);
           await check(route+' '+colorScheme+' '+width);
@@ -129,16 +129,18 @@ export function createClient() {
     await page.getByRole('button',{name:'Add window'}).click();
     await page.getByText('Schedule saved. The ESP32 will sync it on its next poll.').waitFor();
     assert.equal(await page.evaluate(()=>window.testWrites[1].value.on_time),'10:00');
-    await page.evaluate(()=>{location.hash='settings'});
+    await page.evaluate(()=>{location.hash='user-access'});
     await page.locator('.access-device-select').selectOption('esp32-02');
-    await page.getByRole('heading',{name:'Temperature unit',exact:true}).click();
+    await page.getByRole('heading',{name:'Invite and manage users',exact:true}).click();
     await page.waitForTimeout(8500);
     assert.deepEqual(await page.locator('.access-device-select').evaluate(el=>[...el.selectedOptions].map(x=>x.value)),['esp32-02']);
+    await page.evaluate(()=>{location.hash='settings'});
     await page.locator('#temperature-unit').selectOption('fahrenheit');
     await page.evaluate(()=>{location.hash='monitoring'});
     await page.getByText('83.5 °F',{exact:true}).waitFor();
     await page.evaluate(()=>{location.hash='settings'});
     await page.locator('#temperature-unit').selectOption('celsius');
+    await page.evaluate(()=>{location.hash='user-access'});
     await page.getByLabel('Invitee email address').fill('invited@example.test');
     await page.getByRole('button',{name:'Create invite link'}).click();
     const invite = await page.getByLabel('Share this registration link').inputValue();
@@ -146,6 +148,10 @@ export function createClient() {
     await page.evaluate(()=>{window.testRole='authorized';location.hash='overview'});
     await page.getByText('28.6 °C',{exact:true}).waitFor();
     assert.equal(await page.locator('[data-route]:visible').count(),2);
+    assert.equal(await page.locator('[data-route="user-access"]').isVisible(),false);
+    await page.evaluate(()=>{location.hash='user-access'});
+    await page.waitForFunction(()=>location.hash==='#overview');
+    assert.equal(await page.locator('#invite-form').count(),0);
     assert.equal(await page.getByText('Controls & schedule →',{exact:true}).count(),0);
     await page.evaluate(()=>{window.testHold=true;location.hash='alerts'});
     await page.getByRole('heading',{name:'Notifications',exact:true}).waitFor();
@@ -175,6 +181,6 @@ export function createClient() {
     await page.getByRole('button',{name:'Create account',exact:true}).click();
     await page.getByText('Check your inbox to confirm your email, then sign in.',{exact:true}).waitFor();
     assert.deepEqual(errors,[]);
-    console.log('PASS: 44 responsive/theme views, axe checks, role visibility, mocked commands/schedules, edit retention, loading errors, login and registration.');
+    console.log('PASS: 48 responsive/theme views, axe checks, role visibility, mocked commands/schedules, edit retention, loading errors, login and registration.');
   } finally { await browser.close(); }
 })().catch(error=>{console.error(error);process.exitCode=1});
