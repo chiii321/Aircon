@@ -36,6 +36,7 @@ export function createClient() {
       if(name==='respond_to_schedule_confirmation') window.testHold=false;
       window.testWrites.push({name,args});return {data:null,error:null};
     },
+    functions:{invoke:async(name,options)=>{window.testWrites.push({name,options});return {data:{error:'Password verification failed. Your account was not deleted.'},error:null}}},
     from(table) {
       const q = {
         select(){return q},order(){return q},limit(){return q},eq(){return q},
@@ -166,7 +167,22 @@ export function createClient() {
     assert.equal(new URL(invite).searchParams.get('email'),'invited@example.test');
     await page.evaluate(()=>{window.testRole='authorized';location.hash='overview'});
     await page.getByText('28.6 °C',{exact:true}).waitFor();
-    assert.equal(await page.locator('[data-route]:visible').count(),2);
+    assert.equal(await page.locator('[data-route]:visible').count(),3);
+    await page.evaluate(()=>{location.hash='settings'});
+    await page.getByRole('button',{name:'Delete account',exact:true}).click();
+    await page.getByLabel('Your email address',{exact:true}).fill('wrong@example.test');
+    await page.getByRole('button',{name:'Continue',exact:true}).click();
+    await page.getByText('Enter your own account email address.',{exact:true}).waitFor();
+    assert.equal(await page.getByLabel('Current password',{exact:true}).isVisible(),false);
+    await page.getByLabel('Your email address',{exact:true}).fill('room.operator@example.test');
+    await page.getByRole('button',{name:'Continue',exact:true}).click();
+    await page.getByLabel('Current password',{exact:true}).fill('wrong-password');
+    await check('Authorized delete account dialog');
+    await page.getByRole('button',{name:'Delete permanently',exact:true}).click();
+    await page.getByText('Password verification failed. Your account was not deleted.',{exact:true}).waitFor();
+    assert.equal(await page.getByLabel('Current password',{exact:true}).inputValue(),'');
+    await page.getByRole('button',{name:'Cancel',exact:true}).click();
+    await page.evaluate(()=>{location.hash='overview'});
     assert.equal(await page.locator('[data-route="user-access"]').isVisible(),false);
     await page.evaluate(()=>{location.hash='user-access'});
     await page.waitForFunction(()=>location.hash==='#overview');

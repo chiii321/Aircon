@@ -7,6 +7,8 @@ const status = document.getElementById('auth-status')
 const submit = form.querySelector('button[type="submit"]')
 const emailInput = form.elements.email
 let awaitingConfirmation = false
+const deletionNotice = sessionStorage.getItem('inuvair-deletion-notice')
+if (deletionNotice) { status.textContent = deletionNotice; sessionStorage.removeItem('inuvair-deletion-notice') }
 api.auth.onAuthStateChange((event, session) => {
   if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) location.replace('dashboard.html')
 })

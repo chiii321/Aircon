@@ -220,7 +220,65 @@ function renderSettings() {
   const unit = localStorage.getItem('temperature-unit') === 'fahrenheit' ? 'fahrenheit' : 'celsius'
   return `<div class="page">${pageHead('Preferences', 'Settings', 'Manage display preferences and review system information.')}
     <section class="card settings-card"><div class="card-heading"><div><div class="eyebrow">DISPLAY</div><h2>Temperature unit</h2></div></div><p class="muted">Choose how reported temperatures appear across Overview, Devices, and Monitoring.</p><label class="settings-field" for="temperature-unit">Temperature</label><select id="temperature-unit" class="settings-select"><option value="celsius" ${unit === 'celsius' ? 'selected' : ''}>Celsius (°C)</option><option value="fahrenheit" ${unit === 'fahrenheit' ? 'selected' : ''}>Fahrenheit (°F)</option></select></section>
-    <section class="card settings-card"><div class="card-heading"><div><div class="eyebrow">SYSTEM</div><h2>Connection and schedule</h2></div></div><dl class="settings-list"><div><dt>Account</dt><dd>${esc(session?.user?.email || 'Signed in')}</dd></div><div><dt>Schedule time zone</dt><dd>Asia/Manila (UTC+8)</dd></div><div><dt>Online threshold</dt><dd>Heartbeat within 30 seconds</dd></div><div><dt>Dashboard refresh</dt><dd>Every 8 seconds</dd></div></dl></section></div>`
+    <section class="card settings-card"><div class="card-heading"><div><div class="eyebrow">SYSTEM</div><h2>Connection and schedule</h2></div></div><dl class="settings-list"><div><dt>Account</dt><dd>${esc(session?.user?.email || 'Signed in')}</dd></div><div><dt>Schedule time zone</dt><dd>Asia/Manila (UTC+8)</dd></div><div><dt>Online threshold</dt><dd>Heartbeat within 30 seconds</dd></div><div><dt>Dashboard refresh</dt><dd>Every 8 seconds</dd></div></dl></section>${renderAccountDeletion()}</div>`
+}
+
+function renderAccountDeletion() {
+  return `<section class="card settings-card"><div class="eyebrow">ACCOUNT</div><h2>Delete account</h2><p class="muted">Permanently delete your account and its room assignments. This cannot be undone.</p><button id="delete-account" class="danger" type="button">Delete account</button></section><dialog id="delete-dialog" class="import-confirmation" aria-labelledby="delete-title"><h2 id="delete-title">Confirm your email</h2><p id="delete-description">Type your own email address to continue.</p><form id="delete-form"><label class="settings-field" for="delete-email">Your email address</label><input id="delete-email" type="email" autocomplete="email" required><div id="delete-password-step" hidden><label class="settings-field" for="delete-password">Current password</label><input id="delete-password" type="password" autocomplete="current-password"></div><p id="delete-status" class="status-text" role="status" aria-live="polite"></p><div class="button-row"><button id="cancel-delete" class="secondary" type="button">Cancel</button><button id="confirm-delete" class="danger" type="submit">Continue</button></div></form></dialog>`
+}
+
+function attachAccountDeletion() {
+  const dialog = document.getElementById('delete-dialog')
+  const form = document.getElementById('delete-form')
+  const email = document.getElementById('delete-email')
+  const password = document.getElementById('delete-password')
+  const button = document.getElementById('confirm-delete')
+  let step = 1
+  let busy = false
+  document.getElementById('delete-account').onclick = () => {
+    hasUnsavedEdits = true
+    dialog.showModal()
+    email.focus()
+  }
+  dialog.addEventListener('cancel', event => { if (busy) event.preventDefault() })
+  dialog.addEventListener('close', () => { form.reset(); password.value = ''; hasUnsavedEdits = false; render() })
+  document.getElementById('cancel-delete').onclick = () => { if (!busy) dialog.close() }
+  form.onsubmit = async event => {
+    event.preventDefault()
+    if (busy) return
+    if (email.value.trim().toLowerCase() !== session.user.email.toLowerCase()) return setMessage('delete-status', 'Enter your own account email address.', true)
+    if (step === 1) {
+      step = 2
+      email.readOnly = true
+      document.getElementById('delete-password-step').hidden = false
+      password.required = true
+      document.getElementById('delete-title').textContent = 'Verify your password'
+      document.getElementById('delete-description').textContent = 'Enter your current password. Delete permanently removes your account and room assignments.'
+      button.textContent = 'Delete permanently'
+      setMessage('delete-status', '')
+      password.focus()
+      return
+    }
+    busy = true
+    button.disabled = true
+    document.getElementById('cancel-delete').disabled = true
+    try {
+      const response = await api.functions.invoke('delete-account', { body: { email: email.value.trim(), password: password.value } })
+      password.value = ''
+      let message = response.data?.error
+      if (response.error?.context) { try { message = (await response.error.context.json()).error } catch {} }
+      if (response.error || message || !response.data?.deleted) throw new Error(message || 'Could not delete your account. Try again later.')
+      sessionStorage.setItem('inuvair-deletion-notice', response.data.emailSent ? 'Your account was deleted. A deletion notice was submitted to the email service.' : 'Your account was deleted. Your email notice is pending because email delivery is unavailable.')
+      await api.auth.signOut({ scope: 'local' })
+      location.replace('login.html')
+    } catch (error) {
+      password.value = ''
+      setMessage('delete-status', error.message, true)
+      busy = false
+      button.disabled = false
+      document.getElementById('cancel-delete').disabled = false
+    }
+  }
 }
 
 function renderUserAccess() {
@@ -396,7 +454,7 @@ function render() {
   const current = route()
   const role = accessContext?.role
   document.querySelectorAll('[data-route]').forEach(link => {
-    link.hidden = role === 'pending' || role === 'unverified' || (role === 'authorized' && !['overview', 'alerts'].includes(link.dataset.route))
+    link.hidden = role === 'pending' || role === 'unverified' || (role === 'authorized' && !['overview', 'alerts', 'settings'].includes(link.dataset.route))
     link.classList.toggle('active', current === link.dataset.route || current.startsWith('device/') && link.dataset.route === 'devices')
   })
   breadcrumb.textContent = current.startsWith('device/') ? `Device ${selectedId()}` : ({ overview: 'Overview', devices: 'Devices', monitoring: 'Monitoring', scheduling: 'Scheduling', history: 'History', alerts: 'Notifications', 'user-access': 'User access', settings: 'Settings' }[current] || 'Overview')
@@ -408,7 +466,7 @@ function render() {
     return
   }
   if (role === 'pending') { screen.innerHTML = renderPendingApproval(); return }
-  if (role === 'authorized' && !['overview', 'alerts'].includes(current)) { location.hash = 'overview'; return }
+  if (role === 'authorized' && !['overview', 'alerts', 'settings'].includes(current)) { location.hash = 'overview'; return }
   if (role !== 'admin' && role !== 'authorized') { screen.innerHTML = `<div class="page">${banner('Could not verify account access', 'Sign out and sign in again. If this continues, contact the administrator.', true)}</div>`; return }
   const pages = { overview: renderOverview, devices: renderDevices, monitoring: renderMonitoring, scheduling: renderScheduling, history: renderHistory, alerts: renderAlerts, 'user-access': renderUserAccess, settings: renderSettings }
   screen.innerHTML = selectedId() ? renderDetail(selectedId()) : (pages[current] || renderOverview)()
@@ -416,6 +474,7 @@ function render() {
   hasUnsavedEdits = false
   attachTableLinks()
   if (selectedId() && devices.some(d => d.id === selectedId())) attachDetail(selectedId())
+  if (current === 'settings') attachAccountDeletion()
   if (current === 'user-access' && isAdmin()) attachAccessManager()
   if (current === 'scheduling' && isAdmin()) attachScheduleImport()
   if (current === 'overview' || current === 'alerts') attachClassConfirmation()
@@ -481,7 +540,7 @@ async function refresh(force = false) {
     return
   }
   const current = route()
-  if (accessContext.role === 'authorized' && !['overview', 'alerts'].includes(current)) {
+  if (accessContext.role === 'authorized' && !['overview', 'alerts', 'settings'].includes(current)) {
     location.hash = 'overview'
     return
   }
