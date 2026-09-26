@@ -958,3 +958,15 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .assigned-schedule-content ul { list-style: none; padding: 0; margin: 0; }
 .assigned-schedule-content li { padding: 10px 0; border-bottom: 1px solid var(--line); }
 .assigned-schedule-content p { font-size: 12px; margin-top: 12px; }
+
+/* Keep adjacent content cards and invitation controls comfortably separated. */
+.page > .card + .card { margin-top: 20px; }
+.invite-form { margin: 16px 0; }
+.invite-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px; }
+.invite-controls input { flex: 1 1 260px; min-width: 0; max-width: 420px; }
+.invite-controls button { flex: 0 0 auto; }
+@media (max-width: 600px) {
+  .invite-controls input { max-width: none; width: 100%; }
+  .invite-controls button { width: 100%; }
+  .page > .card + .card { margin-top: 16px; }
+}
