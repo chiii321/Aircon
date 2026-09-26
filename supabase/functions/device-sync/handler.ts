@@ -53,6 +53,11 @@ export async function handleDeviceSync(request: Request) {
       humidity_pct: humidity,
     }).eq('id', deviceId)
     if (heartbeatError) return reply({ error: 'Heartbeat failed' }, 500)
+    if (temperature !== null) {
+      const { error: readingError } = await db.from('device_temperature_readings').insert({ device_id: deviceId, temperature_c: temperature })
+      if (readingError) return reply({ error: 'Temperature history write failed' }, 500)
+    }
+    await db.from('device_temperature_readings').delete().eq('device_id', deviceId).lt('recorded_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
     const now = new Date().toISOString()
     const { error: expiryError } = await db.from('device_commands').update({
       status: 'failed', error_message: 'Command expired before delivery',
@@ -64,6 +69,34 @@ export async function handleDeviceSync(request: Request) {
       db.from('device_schedules').select('id,on_time,off_time,enabled').eq('device_id', deviceId).eq('enabled', true).order('on_time'),
     ])
     if (commandsError || deviceError || schedulesError) return reply({ error: 'Sync failed' }, 500)
+    const localNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }))
+    const minute = localNow.getHours() * 60 + localNow.getMinutes()
+    const inScheduledClass = (schedules ?? []).some(schedule => {
+      const [onHour, onMinute] = String(schedule.on_time).slice(0, 5).split(':').map(Number)
+      const [offHour, offMinute] = String(schedule.off_time).slice(0, 5).split(':').map(Number)
+      return minute >= onHour * 60 + onMinute && minute < offHour * 60 + offMinute
+    })
+    if (inScheduledClass && !device.schedule_hold && temperature !== null) {
+      const since = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+      const localParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+      const classDayStart = new Date(`${localParts}T00:00:00+08:00`).toISOString()
+      const [{ data: readings, error: readingsError }, { data: recentCheckins, error: checkinsError }] = await Promise.all([
+        db.from('device_temperature_readings').select('temperature_c,recorded_at').eq('device_id', deviceId).gte('recorded_at', since).order('recorded_at').limit(200),
+        db.from('class_checkins').select('id').eq('device_id', deviceId).gte('detected_at', classDayStart).limit(1),
+      ])
+      if (readingsError || checkinsError) return reply({ error: 'Class check-in evaluation failed' }, 500)
+      const history = readings ?? []
+      const first = history[0]
+      const last = history.at(-1)
+      const values = history.map(reading => Number(reading.temperature_c))
+      if (!recentCheckins?.length && first && last && Date.now() - Date.parse(first.recorded_at) >= 10 * 60 * 1000
+        && Math.max(...values) - Math.min(...values) < 0.5) {
+        const { error: checkinError } = await db.from('class_checkins').insert({
+          device_id: deviceId, temperature_min_c: Math.min(...values), temperature_max_c: Math.max(...values),
+        })
+        if (checkinError) return reply({ error: 'Class check-in creation failed' }, 500)
+      }
+    }
     const command = commands?.[0]
     return reply({ command: command ? { ...command, expires_at_epoch: Math.floor(Date.parse(command.expires_at) / 1000) } : null, schedules: schedules ?? [], schedule_hold: device.schedule_hold, server_time: new Date().toISOString() })
   }

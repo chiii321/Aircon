@@ -296,7 +296,6 @@ void pollCloud() {
 }
 
 void runDailySchedule() {
-  if (scheduleHeld) return;
   const time_t now = time(nullptr);
   if (now < 1700000000) return; // No valid NTP time yet.
   struct tm localTime;
@@ -310,6 +309,11 @@ void runDailySchedule() {
   for (uint8_t i = 0; i < scheduleCount; ++i) {
     if (schedules[i].onMinute == minute || schedules[i].offMinute == minute) {
       const bool turnOn = schedules[i].onMinute == minute;
+      if (turnOn && scheduleHeld) {
+        settings.putUInt("lastEvent", eventKey);
+        Serial.println("Schedule ON skipped because class schedule is paused.");
+        break;
+      }
       if (sendAuxState(turnOn)) {
         settings.putUInt("lastEvent", eventKey);
         Serial.println("Daily schedule boundary sent. Physical AC response remains unverified.");

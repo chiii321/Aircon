@@ -14,6 +14,8 @@ let accessContext = null
 let accessUsers = []
 let latestCommand = null
 let heldDeviceIds = new Set()
+let classCheckins = []
+let classResponseMessage = ''
 let loadingError = ''
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 const route = () => decodeURIComponent(location.hash.slice(1) || 'overview')
@@ -46,11 +48,20 @@ function renderOverview() {
     ? 'Your fleet summary is above. Open Monitoring for live controller readings or Devices to manage individual rooms.'
     : 'This overview includes only the devices assigned to your account. Notifications show connection and command updates for those devices.'
   const alertAction = isAdmin() ? '<small>Open Notifications to review connection status and provisioning.</small>' : '<small>Only assigned devices are included in your notifications.</small>'
+  const assignedRooms = devices.map(d => `<article class="card assigned-room"><div class="panel-top"><div><strong>${esc(d.name)}</strong><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="reading-grid"><div class="reading"><label>Temperature</label><b>${deviceStatus(d) === 'online' ? temperature(d.temperature_c) : '—'}</b><small>${deviceStatus(d) === 'online' && d.temperature_c != null ? 'Latest sensor report' : 'No live reading'}</small></div><div class="reading"><label>Humidity</label><b>${deviceStatus(d) === 'online' ? reading(d.humidity_pct, ' %') : '—'}</b><small>${deviceStatus(d) === 'online' && d.humidity_pct != null ? 'Latest sensor report' : 'No live reading'}</small></div><div class="reading"><label>AC state</label><b>Unknown</b><small>Physical state unverified</small></div></div><p class="muted">Last heartbeat: ${esc(seen(d))}</p></article>`).join('')
+  const checkinCards = renderClassCheckins()
   return `<div class="page overview-page"><div class="overview-brand"><img class="brand-symbol" src="assets/admin-logo-final.svg" alt=""><span>INUVAIR</span><span class="brand-caption">ROOM CLIMATE</span></div>
+    ${classResponseMessage ? banner('Schedule response saved', esc(classResponseMessage)) : ''}
     <div class="summary-grid"><div class="card summary-card"><span class="summary-icon">⌂</span><div><div class="stat-label">ROOMS TRACKED</div><b>${devices.length}</b><small>${isAdmin() ? 'All controller slots' : 'Assigned devices'}</small></div></div><div class="card summary-card"><span class="summary-icon">◉</span><div><div class="stat-label">ONLINE NOW</div><b>${online}</b><small>Recent heartbeats</small></div></div><div class="card summary-card"><span class="summary-icon">✓</span><div><div class="stat-label">PROVISIONED</div><b>${provisioned}<small class="summary-total"> / ${devices.length}</small></b><small>Ready for device sync</small></div></div></div>
     <section class="card room-card overview-links"><div class="card-heading"><div><div class="eyebrow">ROOM OVERVIEW</div><h1>${isAdmin() ? 'Choose a workspace' : 'Your assigned devices'}</h1></div></div><p class="muted">${overviewCopy}</p>${workspace}</section>
+    ${!isAdmin() ? `<section class="assigned-room-list"><div class="section-heading"><h2>Assigned device status</h2><small>Temperature, humidity, and AC state</small></div>${assignedRooms || '<div class="card empty">No devices are assigned to this account.</div>'}</section>${checkinCards}` : ''}
     ${heldDeviceIds.size ? `<section class="card alerts-card schedule-held"><strong>Schedule paused</strong><p>Paused for: ${[...heldDeviceIds].map(deviceName).map(esc).join(', ')}. These controllers will not turn on from their local schedules until you resume them.</p><small>The pause syncs the next time each controller connects.</small><div class="confirmation-actions"><button class="secondary resume-schedule" type="button">Resume schedules</button></div></section>` : ''}
     <section class="card alerts-card"><div class="card-heading"><div><div class="eyebrow">NEEDS ATTENTION</div><h2>Notifications</h2></div><span class="alert-count">${attention}</span></div>${attention ? `<p class="alert-row"><span class="alert-mark">!</span><span><strong>${attention} assigned controller${attention === 1 ? '' : 's'} offline or awaiting setup</strong>${alertAction}</span><a href="#alerts" aria-label="Open notifications">→</a></p>` : '<p class="alert-clear">All assigned controllers have checked in recently.</p>'}<p class="alert-foot">Online status is based on a heartbeat in the last 30 seconds. Temperature is shown only when reported; AC response is not verified.</p></section></div>`
+}
+
+function renderClassCheckins() {
+  if (!classCheckins.length) return ''
+  return `<section class="card alerts-card"><div class="card-heading"><div><div class="eyebrow">CLASS CHECK-IN</div><h2>Is class still continuing?</h2></div><span class="alert-count">${classCheckins.length}</span></div>${classCheckins.map(item => `<article class="schedule-confirmation"><div><strong>${esc(deviceName(item.device_id))} · temperature changed less than 0.5°C over 10 minutes</strong><p>Would you like the schedule to continue?</p><small>Detected ${esc(formatDate(item.detected_at))}. A “No” response pauses this controller schedule.</small></div><div class="confirmation-actions"><button class="secondary class-continue" data-device-id="${esc(item.device_id)}" type="button">Yes, continue</button><button class="danger class-stop" data-device-id="${esc(item.device_id)}" type="button">No, stop schedule</button></div><p class="status-text" id="class-status-${esc(item.device_id)}"></p></article>`).join('')}</section>`
 }
 
 function renderDevices() {
@@ -96,7 +107,9 @@ function renderAlerts() {
   const failures = commandHistory.filter(c => c.status === 'failed')
   const deviceRows = attention.map(d => `<div class="alert-detail"><span class="alert-mark">!</span><div><strong>${esc(d.name)} · ${badge(d)}</strong><small>${d.provisioned ? `Last heartbeat: ${esc(seen(d))}` : 'Controller has not been provisioned yet.'}</small></div>${isAdmin() ? `<a class="subtle-link" href="#device/${encodeURIComponent(d.id)}">Open →</a>` : ''}</div>`).join('')
   const commandRows = failures.map(c => `<div class="alert-detail"><span class="alert-mark">!</span><div><strong>${esc(deviceName(c.device_id))} · ${esc(c.action.toUpperCase())} request failed</strong><small>${esc(c.error_message || 'The controller reported that the IR send failed.')}${c.acknowledged_at ? ` · ${esc(formatDate(c.acknowledged_at))}` : ''}</small></div>${isAdmin() ? `<a class="subtle-link" href="#device/${encodeURIComponent(c.device_id)}">Open →</a>` : ''}</div>`).join('')
-  return `<div class="page">${pageHead('System notices', 'Notifications', isAdmin() ? 'Connection and command issues from across the controller fleet.' : 'Connection and command updates for devices assigned to you.')}
+  return `<div class="page">${pageHead('System notices', 'Notifications', isAdmin() ? 'Connection and command issues from across the controller fleet.' : 'Connection, schedule check-ins, and command updates for devices assigned to you.')}
+    ${classResponseMessage ? banner('Schedule response saved', esc(classResponseMessage)) : ''}
+    ${!isAdmin() ? renderClassCheckins() : ''}
     <div class="stats"><div class="card stat"><div class="stat-label">Offline or setup needed</div><div class="stat-value">${attention.length}</div><div class="stat-sub">Controller slots requiring attention</div></div><div class="card stat"><div class="stat-label">Failed commands</div><div class="stat-value">${failures.length}</div><div class="stat-sub">In the latest ${commandHistory.length} requests</div></div><div class="card stat"><div class="stat-label">All systems clear</div><div class="stat-value">${attention.length || failures.length ? '—' : '✓'}</div><div class="stat-sub">Based on available device data</div></div></div>
     <section class="card alert-list"><div class="card-heading"><div><div class="eyebrow">DEVICE STATUS</div><h2>Offline or not set up</h2></div></div>${deviceRows || '<p class="alert-clear">All assigned controllers are online.</p>'}</section><section class="card alert-list"><div class="card-heading"><div><div class="eyebrow">COMMANDS</div><h2>Failed transmissions</h2></div></div>${commandRows || '<p class="alert-clear">No failed command acknowledgements in recent history.</p>'}</section></div>`
 }
@@ -239,7 +252,7 @@ function render() {
   attachTableLinks()
   if (selectedId() && devices.some(d => d.id === selectedId())) attachDetail(selectedId())
   if (current === 'settings' && isAdmin()) attachAccessManager()
-  if (current === 'overview') attachClassConfirmation()
+  if (current === 'overview' || current === 'alerts') attachClassConfirmation()
   const unitSelect = document.getElementById('temperature-unit')
   if (unitSelect) unitSelect.onchange = () => { localStorage.setItem('temperature-unit', unitSelect.value); render() }
 }
@@ -251,8 +264,23 @@ function attachClassConfirmation() {
     const results = await Promise.all([...heldDeviceIds].map(id => api.rpc('respond_to_schedule_confirmation', { p_device_id: id, p_continue: true })))
     const failure = results.find(result => result.error)
     if (failure) return window.alert(failure.error.message)
+    classResponseMessage = 'Schedules resumed. Controllers will receive the change at their next sync.'
     await refresh(true)
   }
+  document.querySelectorAll('.class-continue, .class-stop').forEach(button => button.onclick = async () => {
+    const deviceId = button.dataset.deviceId
+    const continueClass = button.classList.contains('class-continue')
+    document.querySelectorAll(`.class-continue[data-device-id="${CSS.escape(deviceId)}"], .class-stop[data-device-id="${CSS.escape(deviceId)}"]`).forEach(item => item.disabled = true)
+    const { error } = await api.rpc('respond_to_schedule_confirmation', { p_device_id: deviceId, p_continue: continueClass })
+    if (error) {
+      document.querySelectorAll(`.class-continue[data-device-id="${CSS.escape(deviceId)}"], .class-stop[data-device-id="${CSS.escape(deviceId)}"]`).forEach(item => item.disabled = false)
+      return window.alert(error.message)
+    }
+    classResponseMessage = continueClass
+      ? `Class confirmed for ${deviceName(deviceId)}. Its schedule will continue.`
+      : `Schedule stopped for ${deviceName(deviceId)}. Its controller will skip cached ON events after syncing.`
+    await refresh(true)
+  })
 }
 
 async function refresh(force = false) {
@@ -285,6 +313,11 @@ async function refresh(force = false) {
   loadingError = error?.message || ''
   if (!error) devices = data || []
   heldDeviceIds = accessContext.role === 'authorized' ? new Set(devices.filter(d => d.schedule_hold).map(d => d.id)) : new Set()
+  if (!error && accessContext.role === 'authorized' && ['overview', 'alerts'].includes(current)) {
+    const checkins = await api.from('class_checkins').select('id,device_id,detected_at').eq('status', 'pending').order('detected_at')
+    if (checkins.error) loadingError = checkins.error.message
+    else classCheckins = checkins.data || []
+  } else classCheckins = []
   if (!error && current === 'scheduling') {
     const result = await api.from('device_schedules').select('id,device_id,on_time,off_time,enabled,updated_at').order('on_time')
     if (result.error) loadingError = result.error.message
