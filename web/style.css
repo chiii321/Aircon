@@ -976,3 +976,6 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 @media (max-width: 600px) {
   .user-access-card .access-actions:has(.change-user-role[data-role="authorized"]) { grid-template-columns: minmax(0, 1fr); }
 }
+.assigned-device-panels { display: grid; gap: 20px; }
+.assigned-device-panels > .card { min-width: 0; margin: 0; }
+@media (max-width: 600px) { .assigned-device-panels { gap: 16px; } }
