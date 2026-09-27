@@ -8,6 +8,8 @@ const accountEmail = document.getElementById('account-email')
 const signOut = document.getElementById('sign-out')
 let session = null
 let profileUsername = ''
+let ownProfile = null
+let profileNames = []
 let devices = []
 let schedules = []
 let allSchedules = []
@@ -129,7 +131,7 @@ function renderScheduling() {
 function renderScheduleImport() {
   const rooms = [...new Set(scheduleImport?.rows.map(row => row.room) || [])]
   const preview = scheduleImport ? `<div class="section-heading"><h3>Verified bookings</h3><small>${scheduleImport.rows.length} rows · Asia/Manila</small></div>${scheduleImport.errors.length ? `<div class="import-errors" role="alert"><strong>Fix these rows in Excel and upload again</strong><ul>${scheduleImport.errors.map(error => `<li>${esc(error)}</li>`).join('')}</ul></div>` : `<p class="muted">Choose the controller installed in each room. Imported bookings give the approved user room access only during the listed weekly slot.</p><div class="import-mappings">${rooms.map(room => `<div class="field"><label for="map-room-${esc(room)}">Room ${esc(room)}</label><select id="map-room-${esc(room)}" class="settings-select room-mapping" data-room="${esc(room)}"><option value="">Choose controller</option>${devices.map(device => `<option value="${esc(device.id)}" ${roomMappings[room] === device.id ? 'selected' : ''}>${esc(device.name)} · ${esc(device.id)}</option>`).join('')}</select></div>`).join('')}</div>`}<div class="table-wrap" tabindex="0" role="region" aria-label="Excel booking preview"><table class="device-table"><thead><tr><th>Excel row</th><th>User</th><th>Room</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${scheduleImport.rows.map(row => `<tr><td>${row.row}</td><td>${esc(row.email)}</td><td>${esc(row.room)}</td><td>${esc(DAYS[row.day - 1] || 'Invalid')}</td><td>${esc(row.start)}–${esc(row.end)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table></div><div class="button-row"><button class="primary" id="save-import" type="button" ${importBusy || scheduleImport.errors.length || weeklyLoadError ? 'disabled' : ''}>${importBusy ? 'Saving…' : 'Review changes'}</button><button class="secondary" id="clear-import" type="button" ${importBusy ? 'disabled' : ''}>Clear preview</button></div><small class="muted">Saving adds bookings. Exact duplicates are skipped; existing bookings are kept. Remove an old booking below before changing its time.</small>` : ''
-  const saved = weeklyBookings.map(row => `<tr><td>${esc(row.user_email)}</td><td>${esc(row.room_number)}<br><small>${esc(deviceName(row.device_id))}</small></td><td>${esc(DAYS[row.weekday - 1])}</td><td>${esc(row.start_time.slice(0, 5))}–${esc(row.end_time.slice(0, 5))}</td><td>${esc(row.notes)}</td><td><button class="secondary remove-booking" data-booking-id="${esc(row.id)}" type="button">Remove</button></td></tr>`).join('')
+  const saved = weeklyBookings.map(row => `<tr><td>${esc(profileNames.find(profile => profile.user_id === row.user_id)?.first_name || row.user_email)}</td><td>${esc(row.room_number)}<br><small>${esc(deviceName(row.device_id))}</small></td><td>${esc(DAYS[row.weekday - 1])}</td><td>${esc(row.start_time.slice(0, 5))}–${esc(row.end_time.slice(0, 5))}</td><td>${esc(row.notes)}</td><td><button class="secondary remove-booking" data-booking-id="${esc(row.id)}" type="button">Remove</button></td></tr>`).join('')
   return `<section class="card panel schedule-import"><div class="panel-top"><div><div class="eyebrow">EXCEL TIMETABLE</div><h2>Weekly room bookings</h2></div><a class="secondary template-download" href="templates/inuvair-weekly-room-schedule-template.xlsx" download>Download Excel template</a></div><p class="muted">Upload a filled template to assign approved users to rooms by weekday and time. Bookings repeat weekly in Philippine time. They do not automatically turn an AC on or off.</p><div class="field"><label for="schedule-file">Upload schedule (.xlsx, up to 2 MB / 500 bookings)</label><input id="schedule-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ${importBusy ? 'disabled' : ''}></div><p class="status-text" id="import-status" role="status">${esc(importMessage)}</p>${weeklyLoadError ? `<p class="error-text">${esc(weeklyLoadError)}</p>` : ''}${preview}<div class="section-heading"><h3>Saved weekly bookings</h3><small>${weeklyBookings.length} bookings</small></div><div class="table-wrap" tabindex="0" role="region" aria-label="Saved weekly bookings"><table class="device-table"><thead><tr><th>User</th><th>Room / Controller</th><th>Day</th><th>Time</th><th>Class / Notes</th><th></th></tr></thead><tbody>${saved || '<tr><td colspan="6" class="empty">No weekly bookings saved yet.</td></tr>'}</tbody></table></div></section>`
 }
 
@@ -226,7 +228,7 @@ function renderAlerts() {
 function renderSettings() {
   const unit = localStorage.getItem('temperature-unit') === 'fahrenheit' ? 'fahrenheit' : 'celsius'
   return `<div class="page">${pageHead('Preferences', 'Settings', 'Manage display preferences and review system information.')}
-    <section class="card settings-card"><div class="eyebrow">ACCOUNT</div><h2>Profile</h2><p class="muted">Sign in with your username or email. Usernames use 3–30 letters, numbers, or underscores.</p><form id="profile-form"><label class="settings-field" for="profile-username">Username</label><div class="invite-controls"><input id="profile-username" type="text" autocomplete="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9_]{3,30}" value="${esc(profileUsername)}" placeholder="Choose a username" required><button class="primary" type="submit">Save username</button></div><p id="profile-status" class="status-text" role="status" aria-live="polite"></p></form></section>
+    <section class="card settings-card"><div class="eyebrow">ACCOUNT</div><h2>Profile</h2><p class="muted">Your first name is your display name. Your generated username is fixed and can be used to sign in with your email as an alternative.</p><form id="profile-form"><label class="settings-field" for="profile-first-name">First name</label><input id="profile-first-name" autocomplete="given-name" maxlength="80" value="${esc(ownProfile?.first_name || '')}" required><label class="settings-field" for="profile-last-name">Last name</label><input id="profile-last-name" autocomplete="family-name" maxlength="80" value="${esc(ownProfile?.last_name || '')}" required><label class="settings-field" for="profile-username">Generated username</label><div class="invite-controls"><input id="profile-username" type="text" autocomplete="username" value="${esc(profileUsername)}" placeholder="Generated when you save your name" readonly><button class="primary" type="submit">Save profile</button></div><p id="profile-status" class="status-text" role="status" aria-live="polite"></p></form></section>
     <section class="card settings-card"><div class="card-heading"><div><div class="eyebrow">DISPLAY</div><h2>Temperature unit</h2></div></div><p class="muted">Choose how reported temperatures appear across Overview, Devices, and Monitoring.</p><label class="settings-field" for="temperature-unit">Temperature</label><select id="temperature-unit" class="settings-select"><option value="celsius" ${unit === 'celsius' ? 'selected' : ''}>Celsius (°C)</option><option value="fahrenheit" ${unit === 'fahrenheit' ? 'selected' : ''}>Fahrenheit (°F)</option></select></section>
     <section class="card settings-card"><div class="card-heading"><div><div class="eyebrow">SYSTEM</div><h2>Connection and schedule</h2></div></div><dl class="settings-list"><div><dt>Account</dt><dd>${esc(session?.user?.email || 'Signed in')}</dd></div><div><dt>Schedule time zone</dt><dd>Asia/Manila (UTC+8)</dd></div><div><dt>Online threshold</dt><dd>Heartbeat within 30 seconds</dd></div><div><dt>Dashboard refresh</dt><dd>Every 8 seconds</dd></div></dl></section>${renderAccountDeletion()}</div>`
 }
@@ -239,13 +241,20 @@ function attachProfile() {
     if (button.disabled || !form.reportValidity()) return
     button.disabled = true
     try {
-      const username = document.getElementById('profile-username').value.trim().toLowerCase()
-      const { error } = await api.from('user_profiles').upsert({ user_id: session.user.id, username }, { onConflict: 'user_id' })
+      const first_name = document.getElementById('profile-first-name').value.trim()
+      const last_name = document.getElementById('profile-last-name').value.trim()
+      const values = { first_name, last_name }
+      const result = ownProfile
+        ? await api.from('user_profiles').update(values).eq('user_id', session.user.id).select('username,first_name,last_name').single()
+        : await api.from('user_profiles').insert({ user_id: session.user.id, ...values }).select('username,first_name,last_name').single()
+      const { error, data } = result
       if (error) throw error
-      profileUsername = username
-      document.getElementById('profile-username').value = username
+      ownProfile = data
+      profileUsername = data.username
+      accountEmail.textContent = data.first_name
+      document.getElementById('profile-username').value = data.username
       hasUnsavedEdits = false
-      setMessage('profile-status', 'Username saved. You can now sign in with it or your email.')
+      setMessage('profile-status', 'Profile saved. Your generated username or email can be used to sign in.')
     } catch (error) {
       setMessage('profile-status', error.code === '23505' ? 'That username is already taken. Choose another.' : 'Could not save your username. Please try again.', true)
     } finally { button.disabled = false }
@@ -325,7 +334,7 @@ function renderAccessManager() {
     const bookings = weeklyBookings.filter(booking => booking.user_id === user.id || booking.user_email.toLowerCase() === user.email.toLowerCase())
     const bookingList = bookings.map(booking => `<li><strong>Room ${esc(booking.room_number)}</strong> · ${esc(deviceName(booking.device_id))}<br><small>${esc(DAYS[booking.weekday - 1])} · ${esc(booking.start_time.slice(0, 5))}–${esc(booking.end_time.slice(0, 5))} · Philippine time</small></li>`).join('')
     const assignment = approved ? `<details class="assigned-schedule" data-user-id="${esc(user.id)}" ${openAccessSchedules.has(user.id) ? 'open' : ''}><summary class="secondary">View room schedule (${bookings.length})</summary><div class="assigned-schedule-content">${weeklyLoadError ? `<p class="muted">${esc(weeklyLoadError)}</p>` : bookingList ? `<ul>${bookingList}</ul>` : '<p class="muted">No room slots assigned. Upload a verified Excel timetable in Scheduling to grant access.</p>'}<p class="muted">Room information is available only during each scheduled slot.</p><a href="#scheduling">Manage Excel bookings →</a></div></details><button class="danger revoke-user" type="button" data-user-id="${esc(user.id)}">Revoke approval</button>` : `<p class="muted">This account cannot access devices until approved.</p><button class="primary approve-user" type="button" data-user-id="${esc(user.id)}">Approve user</button>`
-    return `<article class="user-access-card"><div class="panel-top"><div><strong>${esc(user.email)}</strong><small class="monitor-id">Account access${user.id === session?.user?.id ? ' · You' : ''}</small></div><span class="badge ${admin || approved ? 'online' : 'offline'}">${admin ? 'Admin' : approved ? 'Authorized' : 'Pending'}</span></div>${approved ? `<div class="authorized-user-actions">${assignment}${roleAction}</div>` : `${admin ? '' : assignment}<div class="access-actions">${roleAction}</div>`}</article>`
+    return `<article class="user-access-card"><div class="panel-top"><div><strong>${esc(profileNames.find(profile => profile.user_id === user.id)?.first_name || user.email)}</strong><small class="monitor-id">${esc(user.email)} · Account access${user.id === session?.user?.id ? ' · You' : ''}</small></div><span class="badge ${admin || approved ? 'online' : 'offline'}">${admin ? 'Admin' : approved ? 'Authorized' : 'Pending'}</span></div>${approved ? `<div class="authorized-user-actions">${assignment}${roleAction}</div>` : `${admin ? '' : assignment}<div class="access-actions">${roleAction}</div>`}</article>`
   }
   const rows = [
     { role: 'admin', title: 'Admins', empty: 'No admin accounts to show.' },
@@ -455,7 +464,7 @@ function render() {
     heldDeviceIds = new Set([...heldDeviceIds].filter(id => allowed.has(id)))
   }
   if (accessContext?.role === 'authorized' && accessExpiryDeadline != null && performance.now() >= accessExpiryDeadline) { devices = []; commandHistory = []; classCheckins = []; heldDeviceIds = new Set() }
-  accountEmail.textContent = session?.user?.email || ''
+  accountEmail.textContent = ownProfile?.first_name || session?.user?.email || ''
   signOut.hidden = !session
   const current = route()
   const role = accessContext?.role
@@ -550,9 +559,10 @@ async function refresh(force = false) {
     location.hash = 'overview'
     return
   }
-  if (current === 'settings') {
-    const profile = await api.from('user_profiles').select('username').eq('user_id', session.user.id).maybeSingle()
+  {
+    const profile = await api.from('user_profiles').select('username,first_name,last_name').eq('user_id', session.user.id).maybeSingle()
     if (profile.error) throw new Error('Could not load your profile. Please try again.')
+    ownProfile = profile.data
     profileUsername = profile.data?.username || ''
   }
   const { data, error } = await api.from('devices').select('*').order('id')
@@ -578,6 +588,8 @@ async function refresh(force = false) {
     const result = await api.rpc('admin_list_users')
     if (result.error) loadingError = result.error.message
     else accessUsers = Array.isArray(result.data) ? result.data : []
+    const names = await api.from('user_profiles').select('user_id,first_name,last_name')
+    profileNames = names.data || []
   }
   if (!error && (accessContext.role === 'authorized' || (['scheduling', 'user-access'].includes(current) && isAdmin()))) {
     const result = await api.from('weekly_room_assignments').select('id,user_id,user_email,room_number,device_id,weekday,start_time,end_time,notes').order('weekday').order('start_time')

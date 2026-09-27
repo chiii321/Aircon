@@ -41,13 +41,11 @@ form.addEventListener('submit', async event => {
   try {
     let result
     if (mode === 'register') {
-      const username = form.elements.username.value.trim().toLowerCase()
-      if (!/^[a-z0-9_]{3,30}$/.test(username)) throw new Error('Use 3–30 letters, numbers, or underscores for your username.')
+      const first_name = form.elements.firstName.value.trim()
+      const last_name = form.elements.lastName.value.trim()
+      if (!first_name || !last_name) throw new Error('Enter your first and last name.')
       if (password !== form.elements.repeatPassword.value) throw new Error('Passwords do not match.')
-      const availability = await api.rpc('username_available', { candidate: username })
-      if (availability.error) throw new Error('Could not check the username. Please try again.')
-      if (!availability.data) throw new Error('That username is already taken. Choose another.')
-      result = await api.auth.signUp({ email, password, options: { data: { username }, emailRedirectTo: 'https://inuvair.tech/dashboard.html' } })
+      result = await api.auth.signUp({ email, password, options: { data: { first_name, last_name }, emailRedirectTo: 'https://inuvair.tech/dashboard.html' } })
     } else if (email.includes('@')) {
       result = await api.auth.signInWithPassword({ email, password })
     } else {
@@ -79,3 +77,13 @@ form.addEventListener('submit', async event => {
     submit.disabled = awaitingConfirmation
   }
 })
+
+if (mode === 'register') {
+  const preview = () => {
+    const clean = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
+    const base = clean(form.elements.lastName.value).slice(0, 24) + clean(form.elements.firstName.value).slice(0, 1)
+    form.elements.username.value = base ? (base.length < 3 ? 'user' + base : base) : ''
+  }
+  form.elements.firstName.addEventListener('input', preview)
+  form.elements.lastName.addEventListener('input', preview)
+}
