@@ -73,6 +73,8 @@ export function createClient() {
   try {
     await page.emulateMedia({colorScheme:'dark'});
     await page.goto(base+'/index.html');
+    await page.waitForURL('**/login.html');
+    assert.equal(await page.getByRole('heading',{name:'Sign in',exact:true}).count(),1);
     assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
     assert.equal(await page.locator('a[href="register.html"]').count(),0);
     await page.getByRole('button',{name:'Appearance: light',exact:true}).click();
@@ -102,6 +104,7 @@ export function createClient() {
         await page.setViewportSize({width,height:1000});
         for (const file of ['index.html','login.html','register.html']) {
           await page.goto(base+'/'+file);
+          if (file === 'index.html') await page.waitForURL('**/login.html');
           await check(file+' '+colorScheme+' '+width);
           if(process.env.SHOTS_DIR) await page.screenshot({path:process.env.SHOTS_DIR+'/'+file+'-'+colorScheme+'-'+width+'.png',fullPage:true});
         }
