@@ -125,3 +125,5 @@ body { min-height:100dvh; display:flex; flex-direction:column; background:radial
   [data-auth-mode="register"] .form-card { padding: 20px; }
 }
 @media (max-width: 400px) { [data-auth-mode="register"] .signup-field-pair { grid-template-columns: minmax(0, 1fr); gap: 0; } }
+
+[data-auth-mode="login"] .auth-intro { position:relative; isolation:isolate; overflow:hidden; background:linear-gradient(155deg, #26365e, #152b58 48%, #202449); }

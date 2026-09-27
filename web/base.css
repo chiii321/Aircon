@@ -44,18 +44,56 @@ input::placeholder { color:var(--muted); opacity:1; }
   --brand:#b1bfff; --wash:#243e61; --shadow:#081b2433; --success:#93dfb2; --success-bg:#1d352d;
   --warning:#f0ce8c; --warning-bg:#372f22; --error:#ffadb4; --error-bg:#3b262f;
 }
-.theme-toggle { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; padding:10px; border:1px solid var(--line); border-radius:50%; background:var(--surface); color:var(--ink); }
-.theme-toggle:hover { background:var(--soft); }
-.theme-picker { position:relative; }
-.theme-menu { position:absolute; right:0; top:calc(100% + 8px); z-index:3; width:168px; padding:6px; border:1px solid var(--line); border-radius:13px; background:var(--surface); box-shadow:0 6px 20px var(--shadow); }
-.theme-menu button { display:flex; align-items:center; gap:12px; width:100%; min-height:44px; padding:10px 8px; border:0; border-radius:7px; color:var(--ink); background:transparent; font-size:13px; font-weight:600; text-align:left; }
-.theme-menu button:hover,.theme-menu button:focus-visible { background:var(--soft); }
+.theme-toggle { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; padding:10px; border:0; background:transparent; color:var(--ink); }
+.theme-toggle:hover { color:var(--accent); }
 .theme-icon { width:20px; height:20px; flex-shrink:0; background:currentColor; mask:var(--icon) center / contain no-repeat; }
 .theme-icon-settings { --icon:url("assets/icons/settings.svg"); }
 .theme-icon-sun { --icon:url("assets/icons/sun.svg"); }
 .theme-icon-moon { --icon:url("assets/icons/moon.svg"); }
-.theme-check { margin-left:auto; visibility:hidden; }
-[aria-checked="true"] .theme-check { visibility:visible; }
 .header-actions,.account { display:flex; align-items:center; justify-content:flex-end; gap:12px; flex-wrap:wrap; }
+html[data-animations="off"] *,html[data-animations="off"] *::before,html[data-animations="off"] *::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
+html[data-animations="off"] .primary:hover,html[data-animations="off"] .form-submit:hover { transform:none; }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
 @media (hover:hover) and (prefers-reduced-motion:no-preference) { .primary:hover,.form-submit:hover { transform:translateY(-2px); box-shadow:0 6px 16px var(--shadow); } .primary:active,.form-submit:active { transform:translateY(0); } }
+
+.crystal-texture {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: -2;
+  pointer-events: none;
+}
+
+.crystal-texture span {
+  position: absolute;
+  inset: -12%;
+  background: linear-gradient(135deg, #83a8da28, #385a8b08 65%, #9cace52a);
+  clip-path: polygon(0 0, 80% 18%, 46% 64%, 0 100%);
+  animation: crystal-facets 24s ease-in-out infinite alternate;
+}
+
+.crystal-texture span:nth-child(2) { rotate:180deg; animation-delay:-8s; animation-duration:29s; opacity:.65; }
+.crystal-texture span:nth-child(3) { rotate:90deg; scale:1.2; animation-delay:-16s; animation-duration:32s; opacity:.45; }
+.crystal-texture span:nth-child(4) { rotate:240deg; animation-delay:-5s; animation-duration:27s; opacity:.55; }
+.crystal-texture span:nth-child(5) { rotate:320deg; scale:.85; animation-delay:-20s; animation-duration:35s; opacity:.4; }
+
+@keyframes crystal-facets {
+  from { clip-path:polygon(0 0, 80% 18%, 46% 64%, 0 100%); transform:translate(-3%, -2%); }
+  to { clip-path:polygon(0 12%, 100% 38%, 62% 82%, 0 90%); transform:translate(5%, 4%); }
+}
+
+.sidebar::before, [data-auth-mode="login"] .auth-intro::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(125deg, transparent 20%, #80caff30 38%, transparent 49%, #b7a4ff22 64%, transparent 78%);
+  background-size: 300% 300%;
+  animation: crystal-shimmer 18s ease-in-out infinite alternate;
+}
+
+@keyframes crystal-shimmer {
+  from { background-position: 0% 15%; opacity: .45; }
+  to { background-position: 100% 85%; opacity: 1; }
+}
