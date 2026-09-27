@@ -78,12 +78,3 @@ form.addEventListener('submit', async event => {
   }
 })
 
-if (mode === 'register') {
-  const preview = () => {
-    const clean = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')
-    const base = clean(form.elements.lastName.value).slice(0, 24) + clean(form.elements.firstName.value).slice(0, 1)
-    form.elements.username.value = base ? (base.length < 3 ? 'user' + base : base) : ''
-  }
-  form.elements.firstName.addEventListener('input', preview)
-  form.elements.lastName.addEventListener('input', preview)
-}
