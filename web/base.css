@@ -25,7 +25,7 @@ small { font-size:12px; }
 :focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
 input,select { color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 12px; min-height:44px; }
 input::placeholder { color:var(--muted); opacity:1; }
-.brand-name { font-family:Mokoto,sans-serif; font-weight:400; color:var(--brand); font-size:17px; letter-spacing:.10em; white-space:nowrap; }
+.brand-name { font-family:Mokoto,sans-serif; font-weight:400; color:var(--brand); font-size:17px; letter-spacing:.10em; white-space:nowrap; display:inline-flex; align-items:center; height:36px; line-height:1; }
 .brand-symbol,.brand-mark { width:36px; height:36px; object-fit:contain; flex-shrink:0; }
 .logo-box { display:grid; place-items:center; width:36px; height:36px; flex:0 0 36px; background:#ffff; border-radius:7px; }
 :root[data-theme="dark"] .logo-box { background:var(--soft); }
