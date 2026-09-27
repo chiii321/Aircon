@@ -7,6 +7,8 @@ const status = document.getElementById('auth-status')
 const submit = form.querySelector('button[type="submit"]')
 const emailInput = form.elements.email
 let awaitingConfirmation = false
+let validInvitation = false
+const invitationToken = mode === 'register' ? new URLSearchParams(location.search).get('invite') || '' : ''
 const deletionNotice = sessionStorage.getItem('inuvair-deletion-notice')
 if (deletionNotice) { status.textContent = deletionNotice; sessionStorage.removeItem('inuvair-deletion-notice') }
 api.auth.onAuthStateChange((event, session) => {
@@ -30,6 +32,23 @@ function authErrorMessage(error) {
 
 const current = await api.auth.getSession()
 if (current.data.session) location.replace('dashboard.html')
+if (mode === 'register' && !current.data.session) {
+  submit.disabled = true
+  form.querySelectorAll('input').forEach(input => { input.disabled = true })
+  status.textContent = 'Checking your invitation…'
+  try {
+    if (!invitedEmail || !/^[a-f0-9]{64}$/.test(invitationToken)) throw new Error('Invalid invitation')
+    const invitation = await api.rpc('validate_registration_invitation', { invited_email: invitedEmail, invitation_token: invitationToken })
+    if (invitation.error || invitation.data !== true) throw new Error('Invalid invitation')
+    validInvitation = true
+    form.querySelectorAll('input').forEach(input => { input.disabled = false })
+    submit.disabled = false
+    status.textContent = ''
+  } catch {
+    status.classList.add('error')
+    status.textContent = 'This invitation is missing, invalid, expired, or already used. Ask your administrator to email a new registration link.'
+  }
+}
 
 form.addEventListener('submit', async event => {
   event.preventDefault()
@@ -41,11 +60,12 @@ form.addEventListener('submit', async event => {
   try {
     let result
     if (mode === 'register') {
+      if (!validInvitation) throw new Error('A valid administrator invitation is required.')
       const first_name = form.elements.firstName.value.trim()
       const last_name = form.elements.lastName.value.trim()
       if (!first_name || !last_name) throw new Error('Enter your first and last name.')
       if (password !== form.elements.repeatPassword.value) throw new Error('Passwords do not match.')
-      result = await api.auth.signUp({ email, password, options: { data: { first_name, last_name }, emailRedirectTo: 'https://inuvair.tech/dashboard.html' } })
+      result = await api.auth.signUp({ email, password, options: { data: { first_name, last_name, invitation_token: invitationToken }, emailRedirectTo: 'https://inuvair.tech/dashboard.html' } })
     } else if (email.includes('@')) {
       result = await api.auth.signInWithPassword({ email, password })
     } else {
@@ -74,7 +94,7 @@ form.addEventListener('submit', async event => {
     status.classList.add('error')
     status.textContent = authErrorMessage(error)
   } finally {
-    submit.disabled = awaitingConfirmation
+    submit.disabled = awaitingConfirmation || (mode === 'register' && !validInvitation)
   }
 })
 
