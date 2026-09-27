@@ -979,3 +979,6 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .assigned-device-panels { display: grid; gap: 20px; }
 .assigned-device-panels > .card { min-width: 0; margin: 0; }
 @media (max-width: 600px) { .assigned-device-panels { gap: 16px; } }
+.authorized-user-actions { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+.authorized-user-actions > .assigned-schedule { margin: 0; }
+.authorized-user-actions > button, .authorized-user-actions > .assigned-schedule > summary { min-height: 40px; margin: 0; }
