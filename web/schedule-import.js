@@ -34,7 +34,7 @@ export function parseScheduleRows(matrix, users) {
     if (cells.slice(6).some(value => value != null && String(value).trim())) issues.push('Unexpected cells outside the six template columns')
     if (cells.slice(0, 6).some(value => typeof value === 'string' && /[\u0000-\u001f\u007f\ufffd]/.test(value))) issues.push('Unreadable text or line breaks detected')
     if (cells.slice(0, 6).some(value => value != null && !['string','number'].includes(typeof value))) issues.push('Unsupported cell value')
-    if (!users.some(user => user.email?.toLowerCase() === email && user.role === 'authorized')) issues.push('Email must belong to an approved authorized account')
+    if (!users.some(user => user.email?.toLowerCase() === email && user.role === 'authorized')) issues.push('Email must belong to an email-confirmed authorized account')
     if (!/^\d{1,6}$/.test(room)) issues.push('Use a numeric room number, e.g. 301')
     if (!day) issues.push('Choose Monday–Sunday')
     if (!start || !end || start >= end) issues.push('Use 24-hour times with end after start')

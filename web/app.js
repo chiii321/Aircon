@@ -131,9 +131,9 @@ function renderScheduling() {
 
 function renderScheduleImport() {
   const rooms = [...new Set(scheduleImport?.rows.map(row => row.room) || [])]
-  const preview = scheduleImport ? `<div class="section-heading"><h3>Verified bookings</h3><small>${scheduleImport.rows.length} rows · Asia/Manila</small></div>${scheduleImport.errors.length ? `<div class="import-errors" role="alert"><strong>Fix these rows in Excel and upload again</strong><ul>${scheduleImport.errors.map(error => `<li>${esc(error)}</li>`).join('')}</ul></div>` : `<p class="muted">Choose the controller installed in each room. Imported bookings give the approved user room access only during the listed weekly slot.</p><div class="import-mappings">${rooms.map(room => `<div class="field"><label for="map-room-${esc(room)}">Room ${esc(room)}</label><select id="map-room-${esc(room)}" class="settings-select room-mapping" data-room="${esc(room)}"><option value="">Choose controller</option>${devices.map(device => `<option value="${esc(device.id)}" ${roomMappings[room] === device.id ? 'selected' : ''}>${esc(device.name)} · ${esc(device.id)}</option>`).join('')}</select></div>`).join('')}</div>`}<div class="table-wrap" tabindex="0" role="region" aria-label="Excel booking preview"><table class="device-table"><thead><tr><th>Excel row</th><th>User</th><th>Room</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${scheduleImport.rows.map(row => `<tr><td>${row.row}</td><td>${esc(row.email)}</td><td>${esc(row.room)}</td><td>${esc(DAYS[row.day - 1] || 'Invalid')}</td><td>${esc(row.start)}–${esc(row.end)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table></div><div class="button-row"><button class="primary" id="save-import" type="button" ${importBusy || scheduleImport.errors.length || weeklyLoadError ? 'disabled' : ''}>${importBusy ? 'Saving…' : 'Review changes'}</button><button class="secondary" id="clear-import" type="button" ${importBusy ? 'disabled' : ''}>Clear preview</button></div><small class="muted">Saving adds bookings. Exact duplicates are skipped; existing bookings are kept. Remove an old booking below before changing its time.</small>` : ''
+  const preview = scheduleImport ? `<div class="section-heading"><h3>Verified bookings</h3><small>${scheduleImport.rows.length} rows · Asia/Manila</small></div>${scheduleImport.errors.length ? `<div class="import-errors" role="alert"><strong>Fix these rows in Excel and upload again</strong><ul>${scheduleImport.errors.map(error => `<li>${esc(error)}</li>`).join('')}</ul></div>` : `<p class="muted">Choose the controller installed in each room. Imported bookings give the authorized user room access only during the listed weekly slot.</p><div class="import-mappings">${rooms.map(room => `<div class="field"><label for="map-room-${esc(room)}">Room ${esc(room)}</label><select id="map-room-${esc(room)}" class="settings-select room-mapping" data-room="${esc(room)}"><option value="">Choose controller</option>${devices.map(device => `<option value="${esc(device.id)}" ${roomMappings[room] === device.id ? 'selected' : ''}>${esc(device.name)} · ${esc(device.id)}</option>`).join('')}</select></div>`).join('')}</div>`}<div class="table-wrap" tabindex="0" role="region" aria-label="Excel booking preview"><table class="device-table"><thead><tr><th>Excel row</th><th>User</th><th>Room</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${scheduleImport.rows.map(row => `<tr><td>${row.row}</td><td>${esc(row.email)}</td><td>${esc(row.room)}</td><td>${esc(DAYS[row.day - 1] || 'Invalid')}</td><td>${esc(row.start)}–${esc(row.end)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table></div><div class="button-row"><button class="primary" id="save-import" type="button" ${importBusy || scheduleImport.errors.length || weeklyLoadError ? 'disabled' : ''}>${importBusy ? 'Saving…' : 'Review changes'}</button><button class="secondary" id="clear-import" type="button" ${importBusy ? 'disabled' : ''}>Clear preview</button></div><small class="muted">Saving adds bookings. Exact duplicates are skipped; existing bookings are kept. Remove an old booking below before changing its time.</small>` : ''
   const saved = weeklyBookings.map(row => `<tr><td>${esc(displayName(profileNames.find(profile => profile.user_id === row.user_id)) || row.user_email)}</td><td>${esc(row.room_number)}<br><small>${esc(deviceName(row.device_id))}</small></td><td>${esc(DAYS[row.weekday - 1])}</td><td>${esc(row.start_time.slice(0, 5))}–${esc(row.end_time.slice(0, 5))}</td><td>${esc(row.notes)}</td><td><button class="secondary remove-booking" data-booking-id="${esc(row.id)}" type="button">Remove</button></td></tr>`).join('')
-  return `<section class="card panel schedule-import"><div class="panel-top"><div><div class="eyebrow">EXCEL TIMETABLE</div><h2>Weekly room bookings</h2></div><a class="secondary template-download" href="templates/inuvair-weekly-room-schedule-template.xlsx" download>Download Excel template</a></div><p class="muted">Upload a filled template to assign approved users to rooms by weekday and time. Bookings repeat weekly in Philippine time. They do not automatically turn an AC on or off.</p><div class="field"><label for="schedule-file">Upload schedule (.xlsx, up to 2 MB / 500 bookings)</label><input id="schedule-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ${importBusy ? 'disabled' : ''}></div><p class="status-text" id="import-status" role="status">${esc(importMessage)}</p>${weeklyLoadError ? `<p class="error-text">${esc(weeklyLoadError)}</p>` : ''}${preview}<div class="section-heading"><h3>Saved weekly bookings</h3><small>${weeklyBookings.length} bookings</small></div><div class="table-wrap" tabindex="0" role="region" aria-label="Saved weekly bookings"><table class="device-table"><thead><tr><th>User</th><th>Room / Controller</th><th>Day</th><th>Time</th><th>Class / Notes</th><th></th></tr></thead><tbody>${saved || '<tr><td colspan="6" class="empty">No weekly bookings saved yet.</td></tr>'}</tbody></table></div></section>`
+  return `<section class="card panel schedule-import"><div class="panel-top"><div><div class="eyebrow">EXCEL TIMETABLE</div><h2>Weekly room bookings</h2></div><a class="secondary template-download" href="templates/inuvair-weekly-room-schedule-template.xlsx" download>Download Excel template</a></div><p class="muted">Upload a filled template to assign authorized users to rooms by weekday and time. Bookings repeat weekly in Philippine time. They do not automatically turn an AC on or off.</p><div class="field"><label for="schedule-file">Upload schedule (.xlsx, up to 2 MB / 500 bookings)</label><input id="schedule-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ${importBusy ? 'disabled' : ''}></div><p class="status-text" id="import-status" role="status">${esc(importMessage)}</p>${weeklyLoadError ? `<p class="error-text">${esc(weeklyLoadError)}</p>` : ''}${preview}<div class="section-heading"><h3>Saved weekly bookings</h3><small>${weeklyBookings.length} bookings</small></div><div class="table-wrap" tabindex="0" role="region" aria-label="Saved weekly bookings"><table class="device-table"><thead><tr><th>User</th><th>Room / Controller</th><th>Day</th><th>Time</th><th>Class / Notes</th><th></th></tr></thead><tbody>${saved || '<tr><td colspan="6" class="empty">No weekly bookings saved yet.</td></tr>'}</tbody></table></div></section>`
 }
 
 function confirmScheduleImport(rows, mappings) {
@@ -141,7 +141,7 @@ function confirmScheduleImport(rows, mappings) {
     const dialog = document.createElement('dialog')
     dialog.className = 'import-confirmation'
     dialog.setAttribute('aria-labelledby', 'import-confirm-title')
-    dialog.innerHTML = `<h2 id="import-confirm-title">Confirm weekly room access</h2><p>Save these ${rows.length} verified bookings? Approved users will see the listed rooms during these weekly time slots in Philippine time.</p><p>Existing bookings stay in place. Exact duplicates are skipped. AC ON/OFF timers are unchanged. Only the Schedule sheet’s six template columns are used.</p><div class="table-wrap" tabindex="0" role="region" aria-label="Bookings to implement"><table class="device-table"><thead><tr><th>User</th><th>Room / Controller</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${rows.map(row => `<tr><td>${esc(row.email)}</td><td>${esc(row.room)} · ${esc(deviceName(mappings[row.room]))}</td><td>${esc(DAYS[row.day - 1])}</td><td>${esc(row.start)}–${esc(row.end)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table></div><p class="muted">The server checks approval, room mappings and conflicts again before saving. Any failed check cancels the entire import.</p><div class="button-row"><button class="secondary" id="cancel-import" type="button" autofocus>Go back</button><button class="primary" id="confirm-import" type="button">Confirm and save</button></div>`
+    dialog.innerHTML = `<h2 id="import-confirm-title">Confirm weekly room access</h2><p>Save these ${rows.length} verified bookings? Authorized users will see the listed rooms during these weekly time slots in Philippine time.</p><p>Existing bookings stay in place. Exact duplicates are skipped. AC ON/OFF timers are unchanged. Only the Schedule sheet’s six template columns are used.</p><div class="table-wrap" tabindex="0" role="region" aria-label="Bookings to implement"><table class="device-table"><thead><tr><th>User</th><th>Room / Controller</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${rows.map(row => `<tr><td>${esc(row.email)}</td><td>${esc(row.room)} · ${esc(deviceName(mappings[row.room]))}</td><td>${esc(DAYS[row.day - 1])}</td><td>${esc(row.start)}–${esc(row.end)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table></div><p class="muted">The server checks email confirmation, room mappings and conflicts again before saving. Any failed check cancels the entire import.</p><div class="button-row"><button class="secondary" id="cancel-import" type="button" autofocus>Go back</button><button class="primary" id="confirm-import" type="button">Confirm and save</button></div>`
     const finish = confirmed => { dialog.close(); dialog.remove(); document.getElementById('save-import')?.focus(); resolve(confirmed) }
     dialog.querySelector('#cancel-import').onclick = () => finish(false)
     dialog.querySelector('#confirm-import').onclick = () => finish(true)
@@ -322,7 +322,7 @@ function attachAccountDeletion() {
 }
 
 function renderUserAccess() {
-  return `<div class="page">${pageHead('Administration', 'User access', 'Invite users, approve accounts, manage roles, and assign room access.')}${renderAccessManager()}</div>`
+  return `<div class="page">${pageHead('Administration', 'User access', 'Invite users, manage roles, and assign room access.')}${renderAccessManager()}</div>`
 }
 
 function renderAccessManager() {
@@ -335,24 +335,20 @@ function renderAccessManager() {
       : approved ? `<button class="secondary change-user-role" type="button" data-user-id="${esc(user.id)}" data-role="admin">Promote to admin</button>` : ''
     const bookings = weeklyBookings.filter(booking => booking.user_id === user.id || booking.user_email.toLowerCase() === user.email.toLowerCase())
     const bookingList = bookings.map(booking => `<li><strong>Room ${esc(booking.room_number)}</strong> · ${esc(deviceName(booking.device_id))}<br><small>${esc(DAYS[booking.weekday - 1])} · ${esc(booking.start_time.slice(0, 5))}–${esc(booking.end_time.slice(0, 5))} · Philippine time</small></li>`).join('')
-    const assignment = approved ? `<details class="assigned-schedule" data-user-id="${esc(user.id)}" ${openAccessSchedules.has(user.id) ? 'open' : ''}><summary class="secondary">View room schedule (${bookings.length})</summary><div class="assigned-schedule-content">${weeklyLoadError ? `<p class="muted">${esc(weeklyLoadError)}</p>` : bookingList ? `<ul>${bookingList}</ul>` : '<p class="muted">No room slots assigned. Upload a verified Excel timetable in Scheduling to grant access.</p>'}<p class="muted">Room information is available only during each scheduled slot.</p><a href="#scheduling">Manage Excel bookings →</a></div></details><button class="danger revoke-user" type="button" data-user-id="${esc(user.id)}">Revoke approval</button>` : `<p class="muted">This account cannot access devices until approved.</p><button class="primary approve-user" type="button" data-user-id="${esc(user.id)}">Approve user</button>`
+    const assignment = approved ? `<details class="assigned-schedule" data-user-id="${esc(user.id)}" ${openAccessSchedules.has(user.id) ? 'open' : ''}><summary class="secondary">View room schedule (${bookings.length})</summary><div class="assigned-schedule-content">${weeklyLoadError ? `<p class="muted">${esc(weeklyLoadError)}</p>` : bookingList ? `<ul>${bookingList}</ul>` : '<p class="muted">No room slots assigned. Upload a verified Excel timetable in Scheduling to grant access.</p>'}<p class="muted">Room information is available only during each scheduled slot.</p><a href="#scheduling">Manage Excel bookings →</a></div></details>` : `<p class="muted">This user has not confirmed their email yet.</p>`
     return `<article class="user-access-card"><div class="panel-top"><div><strong>${esc(displayName(profileNames.find(profile => profile.user_id === user.id)) || user.email)}</strong><small class="monitor-id">${esc(user.email)} · Account access${user.id === session?.user?.id ? ' · You' : ''}</small></div><span class="badge ${admin || approved ? 'online' : 'offline'}">${admin ? 'Admin' : approved ? 'Authorized' : 'Pending'}</span></div>${approved ? `<div class="authorized-user-actions">${assignment}${roleAction}</div>` : `${admin ? '' : assignment}<div class="access-actions">${roleAction}</div>`}</article>`
   }
   const rows = [
     { role: 'admin', title: 'Admins', empty: 'No admin accounts to show.' },
     { role: 'authorized', title: 'Authorized users', empty: 'No authorized users yet.' },
-    { role: 'pending', title: 'Awaiting approval', empty: 'No accounts awaiting approval.' },
+    { role: 'unverified', title: 'Email not confirmed', empty: 'All accounts have confirmed their email.' },
   ].map(group => {
     const members = accessUsers.filter(user => user.role === group.role)
     return `<section class="user-role-group" aria-labelledby="role-group-${group.role}"><div class="section-heading"><h3 id="role-group-${group.role}">${group.title}</h3><small>${members.length} account${members.length === 1 ? '' : 's'}</small></div><div class="user-access-list">${members.map(userCard).join('') || `<p class="muted">${group.empty}</p>`}</div></section>`
   }).join('')
-  return `<section class="card access-manager"><div class="card-heading"><div><div class="eyebrow">ADMIN ONLY</div><h2>Invite and manage users</h2></div><small>${accessUsers.filter(user => user.role === 'authorized').length} approved</small></div><p class="muted">Email a personal registration link with a welcome message. After email confirmation, approve the account. Upload its weekly room assignments through Excel in Scheduling.</p><form id="invite-form" class="invite-form"><label class="settings-field" for="invite-email">Invitee email address</label><div class="invite-controls"><input id="invite-email" type="email" autocomplete="email" placeholder="person@example.com" required><button id="email-registration-link" class="primary" type="submit">Email registration link</button></div></form><div id="access-status" class="status-text" role="status" aria-live="polite"></div><div class="user-access-list">${rows || '<p class="alert-clear">No other accounts have signed up yet.</p>'}</div></section>`
+  return `<section class="card access-manager"><div class="card-heading"><div><div class="eyebrow">ADMIN ONLY</div><h2>Invite and manage users</h2></div><small>${accessUsers.filter(user => user.role === 'authorized').length} authorized</small></div><p class="muted">Email a personal registration link with a welcome message. Email confirmation activates the account automatically. Upload its weekly room assignments through Excel in Scheduling.</p><form id="invite-form" class="invite-form"><label class="settings-field" for="invite-email">Invitee email address</label><div class="invite-controls"><input id="invite-email" type="email" autocomplete="email" placeholder="person@example.com" required><button id="email-registration-link" class="primary" type="submit">Email registration link</button></div></form><div id="access-status" class="status-text" role="status" aria-live="polite"></div><div class="user-access-list">${rows || '<p class="alert-clear">No other accounts have signed up yet.</p>'}</div></section>`
 }
 
-function renderPendingApproval() {
-  return `<div class="page pending-page">${pageHead('Account access', 'Awaiting admin approval', 'Your account is signed in, but it has not been approved for INUVAIR yet. Ask the site administrator to approve your account and assign your devices.')}
-    <section class="card pending-card"><div class="summary-icon">◷</div><strong>Access is not active yet</strong><p class="muted">Once approved, you will be able to view Overview and Notifications for only the devices assigned to your account.</p></section></div>`
-}
 
 function scheduleRows() {
   return schedules.map(s => `<div class="schedule-row" data-schedule="${s.id}"><div class="field"><label for="schedule-on-${s.id}">ON · 24-hour</label><input type="time" id="schedule-on-${s.id}" class="on-time" value="${esc(s.on_time.slice(0, 5))}"></div><div class="field"><label for="schedule-off-${s.id}">OFF · 24-hour</label><input type="time" id="schedule-off-${s.id}" class="off-time" value="${esc(s.off_time.slice(0, 5))}"></div><button class="secondary save-schedule" type="button">Save</button><button class="danger remove-schedule" type="button">Remove</button></div>`).join('')
@@ -417,20 +413,13 @@ function attachAccessManager() {
       }
       if (error || message) throw new Error(message || 'Could not send the invitation. Try again later.')
       if (!data?.accepted) throw new Error('The email service did not confirm this invitation.')
-      setMessage('access-status', 'Invitation accepted by the email service. Ask the recipient to check their inbox and spam folder. Admin approval is still required.')
+      setMessage('access-status', 'Invitation accepted by the email service. Ask the recipient to check their inbox and spam folder. They can sign in after confirming their email.')
     } catch (error) {
       setMessage('access-status', error.message, true)
     } finally {
       emailButton.disabled = false
     }
   }
-  document.querySelectorAll('.approve-user').forEach(button => button.onclick = async () => {
-    button.disabled = true
-    const { error } = await api.rpc('admin_set_user_authorized', { target_user_id: button.dataset.userId, approved: true })
-    if (error) { button.disabled = false; return setMessage('access-status', error.message, true) }
-    await refresh(true)
-    setMessage('access-status', 'User approved. Use the Excel timetable in Scheduling to assign their weekly room access.')
-  })
   document.querySelectorAll('.change-user-role').forEach(button => button.onclick = async () => {
     const user = accessUsers.find(account => account.id === button.dataset.userId)
     const promote = button.dataset.role === 'admin'
@@ -448,13 +437,7 @@ function attachAccessManager() {
       setMessage('access-status', error.message || 'Could not change the role. Please try again.', true)
     }
   })
-  document.querySelectorAll('.revoke-user').forEach(button => button.onclick = async () => {
-    button.disabled = true
-    const { error } = await api.rpc('admin_set_user_authorized', { target_user_id: button.dataset.userId, approved: false })
-    if (error) { button.disabled = false; return setMessage('access-status', error.message, true) }
-    await refresh(true)
-    setMessage('access-status', 'Approval revoked and device assignments removed.')
-  })
+
 }
 
 function render() {
@@ -471,7 +454,7 @@ function render() {
   const current = route()
   const role = accessContext?.role
   document.querySelectorAll('[data-route]').forEach(link => {
-    link.hidden = role === 'pending' || role === 'unverified' || (role === 'authorized' && !(['overview', 'alerts', 'settings'].includes(link.dataset.route) || (link.dataset.route === 'devices' && weeklyBookings.length > 0)))
+    link.hidden = role === 'unverified' || (role === 'authorized' && !(['overview', 'alerts', 'settings'].includes(link.dataset.route) || (link.dataset.route === 'devices' && weeklyBookings.length > 0)))
     link.classList.toggle('active', current === link.dataset.route || current.startsWith('device/') && link.dataset.route === 'devices')
   })
   breadcrumb.textContent = current.startsWith('device/') ? `Device ${selectedId()}` : ({ overview: 'Overview', devices: 'Devices', monitoring: 'Monitoring', scheduling: 'Scheduling', history: 'History', alerts: 'Notifications', 'user-access': 'User access', settings: 'Settings' }[current] || 'Overview')
@@ -482,7 +465,6 @@ function render() {
     document.getElementById('retry-load').onclick = () => refresh(true)
     return
   }
-  if (role === 'pending') { screen.innerHTML = renderPendingApproval(); return }
   if (role === 'authorized' && !['overview', 'alerts', 'settings', 'devices'].includes(current)) { location.hash = 'overview'; return }
   if (role !== 'admin' && role !== 'authorized') { screen.innerHTML = `<div class="page">${banner('Could not verify account access', 'Sign out and sign in again. If this continues, contact the administrator.', true)}</div>`; return }
   const pages = { overview: renderOverview, devices: renderDevices, monitoring: renderMonitoring, scheduling: renderScheduling, history: renderHistory, alerts: renderAlerts, 'user-access': renderUserAccess, settings: renderSettings }
@@ -534,7 +516,7 @@ async function refresh(force = false) {
   try {
   const accessRequestStarted = performance.now()
   const accessResult = await api.rpc('get_my_access_context')
-  if (accessResult.error || !['admin', 'authorized', 'pending'].includes(accessResult.data?.role)) {
+  if (accessResult.error || !['admin', 'authorized'].includes(accessResult.data?.role)) {
     accessContext = { role: 'unverified' }
     devices = []
     loadingError = accessResult.error?.message || 'The account access response was invalid.'
@@ -548,15 +530,6 @@ async function refresh(force = false) {
     const remaining = Math.max(0, Date.parse(accessContext.expiresAt) - Date.parse(accessContext.serverTime) - (performance.now() - accessRequestStarted))
     accessExpiryDeadline = performance.now() + remaining
     accessExpiryTimer = setTimeout(clearExpiredRoomInfo, remaining)
-  }
-  if (accessContext.role === 'pending') {
-    devices = []
-    schedules = []
-    allSchedules = []
-    commandHistory = []
-    accessUsers = []
-    render()
-    return
   }
   const current = route()
   if (accessContext.role === 'authorized' && !['overview', 'alerts', 'settings', 'devices'].includes(current)) {
