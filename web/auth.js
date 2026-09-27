@@ -39,9 +39,22 @@ form.addEventListener('submit', async event => {
   const email = emailInput.value.trim()
   const password = form.elements.password.value
   try {
-    const result = mode === 'register'
-      ? await api.auth.signUp({ email, password, options: { emailRedirectTo: 'https://inuvair.tech/dashboard.html' } })
-      : await api.auth.signInWithPassword({ email, password })
+    let result
+    if (mode === 'register') {
+      const username = form.elements.username.value.trim().toLowerCase()
+      if (!/^[a-z0-9_]{3,30}$/.test(username)) throw new Error('Use 3–30 letters, numbers, or underscores for your username.')
+      if (password !== form.elements.repeatPassword.value) throw new Error('Passwords do not match.')
+      const availability = await api.rpc('username_available', { candidate: username })
+      if (availability.error) throw new Error('Could not check the username. Please try again.')
+      if (!availability.data) throw new Error('That username is already taken. Choose another.')
+      result = await api.auth.signUp({ email, password, options: { data: { username }, emailRedirectTo: 'https://inuvair.tech/dashboard.html' } })
+    } else if (email.includes('@')) {
+      result = await api.auth.signInWithPassword({ email, password })
+    } else {
+      const response = await api.functions.invoke('username-login', { body: { username: email.toLowerCase(), password } })
+      if (response.error || !response.data?.session) throw new Error(response.data?.error || 'Invalid username or password, or email is not confirmed. Try again later if you have made several attempts.')
+      result = await api.auth.setSession(response.data.session)
+    }
     if (result.error) {
       status.classList.add('error')
       status.textContent = authErrorMessage(result.error)
@@ -53,8 +66,7 @@ form.addEventListener('submit', async event => {
       form.elements.password.value = ''
       if (result.data?.session) { location.replace('dashboard.html'); return }
       awaitingConfirmation = true
-      emailInput.disabled = true
-      form.elements.password.disabled = true
+      form.querySelectorAll('input').forEach(input => { input.value = ''; input.disabled = true })
       submit.textContent = 'Awaiting email confirmation'
       status.textContent = 'Account created. Check your inbox and spam folder. Open the confirmation link to confirm your email and sign in automatically.'
       history.replaceState(null, '', location.pathname)

@@ -7,6 +7,7 @@ const breadcrumb = document.getElementById('breadcrumb')
 const accountEmail = document.getElementById('account-email')
 const signOut = document.getElementById('sign-out')
 let session = null
+let profileUsername = ''
 let devices = []
 let schedules = []
 let allSchedules = []
@@ -225,8 +226,30 @@ function renderAlerts() {
 function renderSettings() {
   const unit = localStorage.getItem('temperature-unit') === 'fahrenheit' ? 'fahrenheit' : 'celsius'
   return `<div class="page">${pageHead('Preferences', 'Settings', 'Manage display preferences and review system information.')}
+    <section class="card settings-card"><div class="eyebrow">ACCOUNT</div><h2>Profile</h2><p class="muted">Sign in with your username or email. Usernames use 3–30 letters, numbers, or underscores.</p><form id="profile-form"><label class="settings-field" for="profile-username">Username</label><div class="invite-controls"><input id="profile-username" type="text" autocomplete="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9_]{3,30}" value="${esc(profileUsername)}" placeholder="Choose a username" required><button class="primary" type="submit">Save username</button></div><p id="profile-status" class="status-text" role="status" aria-live="polite"></p></form></section>
     <section class="card settings-card"><div class="card-heading"><div><div class="eyebrow">DISPLAY</div><h2>Temperature unit</h2></div></div><p class="muted">Choose how reported temperatures appear across Overview, Devices, and Monitoring.</p><label class="settings-field" for="temperature-unit">Temperature</label><select id="temperature-unit" class="settings-select"><option value="celsius" ${unit === 'celsius' ? 'selected' : ''}>Celsius (°C)</option><option value="fahrenheit" ${unit === 'fahrenheit' ? 'selected' : ''}>Fahrenheit (°F)</option></select></section>
     <section class="card settings-card"><div class="card-heading"><div><div class="eyebrow">SYSTEM</div><h2>Connection and schedule</h2></div></div><dl class="settings-list"><div><dt>Account</dt><dd>${esc(session?.user?.email || 'Signed in')}</dd></div><div><dt>Schedule time zone</dt><dd>Asia/Manila (UTC+8)</dd></div><div><dt>Online threshold</dt><dd>Heartbeat within 30 seconds</dd></div><div><dt>Dashboard refresh</dt><dd>Every 8 seconds</dd></div></dl></section>${renderAccountDeletion()}</div>`
+}
+
+function attachProfile() {
+  const form = document.getElementById('profile-form')
+  form.onsubmit = async event => {
+    event.preventDefault()
+    const button = form.querySelector('button')
+    if (button.disabled || !form.reportValidity()) return
+    button.disabled = true
+    try {
+      const username = document.getElementById('profile-username').value.trim().toLowerCase()
+      const { error } = await api.from('user_profiles').upsert({ user_id: session.user.id, username }, { onConflict: 'user_id' })
+      if (error) throw error
+      profileUsername = username
+      document.getElementById('profile-username').value = username
+      hasUnsavedEdits = false
+      setMessage('profile-status', 'Username saved. You can now sign in with it or your email.')
+    } catch (error) {
+      setMessage('profile-status', error.code === '23505' ? 'That username is already taken. Choose another.' : 'Could not save your username. Please try again.', true)
+    } finally { button.disabled = false }
+  }
 }
 
 function renderAccountDeletion() {
@@ -457,7 +480,7 @@ function render() {
   hasUnsavedEdits = false
   attachTableLinks()
   if (selectedId() && devices.some(d => d.id === selectedId())) attachDetail(selectedId())
-  if (current === 'settings') attachAccountDeletion()
+  if (current === 'settings') { attachAccountDeletion(); attachProfile() }
   if (current === 'user-access' && isAdmin()) attachAccessManager()
   if (current === 'scheduling' && isAdmin()) attachScheduleImport()
   if (current === 'overview' || current === 'alerts') attachClassConfirmation()
@@ -526,6 +549,11 @@ async function refresh(force = false) {
   if (accessContext.role === 'authorized' && !['overview', 'alerts', 'settings', 'devices'].includes(current)) {
     location.hash = 'overview'
     return
+  }
+  if (current === 'settings') {
+    const profile = await api.from('user_profiles').select('username').eq('user_id', session.user.id).maybeSingle()
+    if (profile.error) throw new Error('Could not load your profile. Please try again.')
+    profileUsername = profile.data?.username || ''
   }
   const { data, error } = await api.from('devices').select('*').order('id')
   loadingError = error?.message || ''
