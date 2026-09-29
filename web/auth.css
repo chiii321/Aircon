@@ -3,6 +3,9 @@ body { min-height:100dvh; display:flex; flex-direction:column; background:radial
 .public-header,.public-footer { width:min(1160px,calc(100% - 64px)); margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:20px; }
 .public-header { min-height:88px; }
 .public-brand { display:flex; align-items:center; gap:9px; text-decoration:none; }
+[data-auth-mode="login"] .public-header { justify-content:flex-end; }
+[data-auth-mode="login"] .auth-intro .public-brand { align-self:flex-start; margin-bottom:28px; }
+[data-auth-mode="login"] .auth-intro .brand-name { color:#f2f6ff; }
 .header-link { font-size:14px; }
 .public-footer { padding:24px 0; font-size:12px; color:var(--muted); }
 .welcome-main,.auth-main { width:min(1040px,calc(100% - 64px)); margin:auto; padding:64px 0; flex:1; display:grid; align-content:center; align-items:center; gap:72px; grid-template-columns:1.15fr 1fr; }
