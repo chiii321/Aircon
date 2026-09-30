@@ -984,6 +984,17 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 #profile-form > input { display: block; width: 100%; margin: 8px 0 16px; }
 #profile-form input[readonly] { background: var(--soft); color: var(--muted); }
 
-.room-schedule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 20px; }
+.room-schedule-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
 .room-schedule-card { min-width: 0; margin: 0; }
 .room-schedule-card h3 { margin: 20px 0 12px; }
+
+.room-schedule-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; cursor: pointer; list-style: none; }
+.room-schedule-header::-webkit-details-marker { display: none; }
+.room-schedule-header strong { font-size: 18px; color: var(--ink); }
+.room-schedule-header:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 4px; }
+.room-schedule-chevron { font-size: 24px; color: var(--muted); }
+.room-schedule-card[open] .room-schedule-chevron { transform: rotate(180deg); }
+.room-schedule-content { margin-top: 20px; border-top: 1px solid var(--line); }
+.room-schedule-content > .panel-top { align-items: center; flex-wrap: wrap; margin-top: 20px; }
+.room-schedule-content > .panel-top h3 { margin: 0; }
+.room-schedule-content > .panel-top + .table-wrap { margin-top: 12px; }

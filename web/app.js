@@ -31,7 +31,12 @@ let importBusy = false
 let accessExpiryTimer = null
 let accessExpiryDeadline = null
 const openAccessSchedules = new Set()
+const openRoomSchedules = new Set()
 screen.addEventListener('toggle', event => {
+  if (event.target.matches('.room-schedule-card')) {
+    if (event.target.open) openRoomSchedules.add(event.target.dataset.deviceId)
+    else openRoomSchedules.delete(event.target.dataset.deviceId)
+  }
   if (event.target.matches('.assigned-schedule')) {
     if (event.target.open) openAccessSchedules.add(event.target.dataset.userId)
     else openAccessSchedules.delete(event.target.dataset.userId)
@@ -125,7 +130,7 @@ function renderScheduling() {
     const bookingRows = bookings.map(booking => `<tr><td>${esc(displayName(profileNames.find(profile => profile.user_id === booking.user_id)) || booking.user_email)}</td><td>${esc(DAYS[booking.weekday - 1])}</td><td>${esc(booking.start_time.slice(0, 5))}–${esc(booking.end_time.slice(0, 5))}</td><td>${esc(booking.notes)}</td><td><button class="secondary remove-booking" data-booking-id="${esc(booking.id)}" type="button">Remove</button></td></tr>`).join('')
     const timers = allSchedules.filter(schedule => schedule.device_id === device.id)
     const timerRows = timers.map(schedule => `<tr><td>${esc(schedule.on_time.slice(0, 5))}</td><td>${esc(schedule.off_time.slice(0, 5))}</td><td><span class="badge ${schedule.enabled ? 'online' : 'offline'}">${schedule.enabled ? 'Enabled' : 'Paused'}</span></td></tr>`).join('')
-    return `<section class="card panel room-schedule-card"><div class="panel-top"><div><h2>Room ${esc(room)}</h2><small class="monitor-id">${esc(device.id)}</small></div><a class="secondary" href="#device/${encodeURIComponent(device.id)}">Manage timers →</a></div><h3>Weekly bookings</h3><div class="table-wrap" tabindex="0" role="region" aria-label="Room ${esc(room)} weekly bookings"><table class="device-table"><thead><tr><th>User</th><th>Day</th><th>Time</th><th>Class / Notes</th><th></th></tr></thead><tbody>${bookingRows || '<tr><td colspan="5" class="empty">No weekly bookings.</td></tr>'}</tbody></table></div><h3>Daily AC timers</h3><div class="table-wrap" tabindex="0" role="region" aria-label="Room ${esc(room)} daily timers"><table class="device-table"><thead><tr><th>Turns on</th><th>Turns off</th><th>Status</th></tr></thead><tbody>${timerRows || '<tr><td colspan="3" class="empty">No timers set.</td></tr>'}</tbody></table></div></section>`
+    return `<details class="card panel room-schedule-card" data-device-id="${esc(device.id)}" ${openRoomSchedules.has(device.id) ? 'open' : ''}><summary class="room-schedule-header"><span><strong>Room ${esc(room)}</strong><small class="monitor-id">${esc(device.id)}</small></span><span class="room-schedule-chevron" aria-hidden="true">⌄</span></summary><div class="room-schedule-content"><div class="panel-top"><h3>Weekly bookings</h3><a class="secondary" href="#device/${encodeURIComponent(device.id)}">Manage timers →</a></div><div class="table-wrap" tabindex="0" role="region" aria-label="Room ${esc(room)} weekly bookings"><table class="device-table"><thead><tr><th>User</th><th>Day</th><th>Time</th><th>Class / Notes</th><th></th></tr></thead><tbody>${bookingRows || '<tr><td colspan="5" class="empty">No weekly bookings.</td></tr>'}</tbody></table></div><h3>Daily AC timers</h3><div class="table-wrap" tabindex="0" role="region" aria-label="Room ${esc(room)} daily timers"><table class="device-table"><thead><tr><th>Turns on</th><th>Turns off</th><th>Status</th></tr></thead><tbody>${timerRows || '<tr><td colspan="3" class="empty">No timers set.</td></tr>'}</tbody></table></div></div></details>`
   }).join('')
   return `<div class="page">${pageHead('Room routines', 'Scheduling', '')}${renderScheduleImport()}<div class="room-schedule-grid">${cards || '<div class="card empty">No controllers are assigned to this account.</div>'}</div></div>`
 }
