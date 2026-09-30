@@ -983,3 +983,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .authorized-user-actions > button, .authorized-user-actions > .assigned-schedule > summary { min-height: 40px; margin: 0; }
 #profile-form > input { display: block; width: 100%; margin: 8px 0 16px; }
 #profile-form input[readonly] { background: var(--soft); color: var(--muted); }
+
+.room-schedule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 20px; }
+.room-schedule-card { min-width: 0; margin: 0; }
+.room-schedule-card h3 { margin: 20px 0 12px; }
