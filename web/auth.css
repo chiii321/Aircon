@@ -4,7 +4,7 @@ body { min-height:100dvh; display:flex; flex-direction:column; background:radial
 .public-header { min-height:88px; }
 .public-brand { display:flex; align-items:center; gap:9px; text-decoration:none; }
 [data-auth-mode="login"] .public-header { justify-content:flex-end; }
-[data-auth-mode="login"] .auth-intro .public-brand { align-self:flex-start; margin-bottom:28px; }
+[data-auth-mode="login"] .auth-intro .public-brand { position:absolute; top:40px; left:50%; transform:translateX(-50%); }
 [data-auth-mode="login"] .auth-intro .brand-name { color:#f2f6ff; }
 .header-link { font-size:14px; }
 .public-footer { padding:24px 0; font-size:12px; color:var(--muted); }
@@ -130,3 +130,7 @@ body { min-height:100dvh; display:flex; flex-direction:column; background:radial
 @media (max-width: 400px) { [data-auth-mode="register"] .signup-field-pair { grid-template-columns: minmax(0, 1fr); gap: 0; } }
 
 [data-auth-mode="login"] .auth-intro { position:relative; isolation:isolate; overflow:hidden; background:linear-gradient(155deg, #26365e, #152b58 48%, #202449); }
+@media (max-width:760px) {
+  [data-auth-mode="login"] .auth-intro { padding-top:80px; }
+  [data-auth-mode="login"] .auth-intro .public-brand { top:24px; }
+}
