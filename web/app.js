@@ -73,6 +73,14 @@ function table(rows) {
   return `<div class="card table-wrap" tabindex="0" role="region" aria-label="Scrollable table"><table class="device-table"><thead><tr><th>Device</th><th>ID</th><th>Connection</th><th>Temperature</th><th>Last seen</th><th></th></tr></thead><tbody>${rows.map(d => `<tr data-device="${esc(d.id)}" tabindex="0" aria-label="Open device ${esc(d.id)}"><td><strong>${esc(d.name)}</strong><br><small>${esc(d.model || 'Controller slot')}</small></td><td><span class="device-id">${esc(d.id)}</span></td><td>${badge(d)}</td><td>${deviceStatus(d) === 'online' ? temperature(d.temperature_c) : '—'}</td><td>${esc(seen(d))}</td><td>↗</td></tr>`).join('')}</tbody></table></div>`
 }
 
+function renderEnergyCharts() {
+  const cards = [
+    { title: 'Daily consumption', labels: ['00:00', '06:00', '12:00', '18:00', '24:00'] },
+    { title: 'Monthly consumption', labels: ['1', '7', '14', '21', '31'] },
+  ]
+  return `<section class="energy-monitoring" aria-label="Estimated energy consumption"><div class="section-heading"><h2>Estimated energy consumption</h2><small>kWh</small></div><div class="energy-chart-grid">${cards.map(card => `<article class="card energy-chart-card"><h3>${card.title} <span>(kWh)</span></h3><div class="energy-chart-empty"><svg viewBox="0 0 400 220" aria-hidden="true"><path class="energy-grid" d="M32 20H384 M32 62H384 M32 104H384 M32 146H384 M32 188H384 M32 20V188 M120 20V188 M208 20V188 M296 20V188 M384 20V188"/><text x="22" y="193" text-anchor="end">0</text>${card.labels.map((label, index) => `<text x="${32 + index * 88}" y="213" text-anchor="${index === 0 ? 'start' : index === 4 ? 'end' : 'middle'}">${label}</text>`).join('')}</svg><p class="energy-empty-message">Awaiting runtime data</p></div><p class="energy-chart-note">2.66 kW × operating hours · estimated</p></article>`).join('')}</div></section>`
+}
+
 function renderOverview() {
   const assignedDeviceCount = isAdmin() ? devices.length : new Set(weeklyBookings.map(booking => booking.device_id)).size
   const online = devices.filter(d => deviceStatus(d) === 'online').length
@@ -89,6 +97,7 @@ function renderOverview() {
     <section class="card room-card overview-links"><div class="card-heading"><div><h1>${isAdmin() ? 'Choose a workspace' : 'Your assigned devices'}</h1></div></div>${workspace}</section>
     ${!isAdmin() ? `<section class="assigned-room-list"><div class="section-heading"><h2>Assigned device status</h2></div>${assignedRooms || '<div class="card empty">No active schedule slot.</div>'}</section>${checkinCards}` : ''}
     ${heldDeviceIds.size ? `<section class="card alerts-card schedule-held"><strong>Schedule paused</strong><p>Paused for: ${[...heldDeviceIds].map(deviceName).map(esc).join(', ')}</p><div class="confirmation-actions"><button class="secondary resume-schedule" type="button">Resume schedules</button></div></section>` : ''}
+    ${renderEnergyCharts()}
     <section class="card alerts-card"><div class="card-heading"><div><h2>Notifications</h2></div><span class="alert-count">${attention}</span></div>${attention ? `<p class="alert-row"><span class="alert-mark">!</span><span><strong>${attention} assigned controller${attention === 1 ? '' : 's'} offline or awaiting setup</strong></span><a href="#alerts" aria-label="Open notifications">→</a></p>` : '<p class="alert-clear">No notifications.</p>'}</section></div>`
 }
 
@@ -120,6 +129,7 @@ function renderMonitoring() {
   const cards = devices.map(d => `<article class="card monitor-card"><div class="panel-top"><div><strong>${esc(d.name)}</strong><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="monitor-readings"><div><label>Temperature</label><b>${deviceStatus(d) === 'online' ? temperature(d.temperature_c) : '—'}</b></div><div><label>Humidity</label><b>${deviceStatus(d) === 'online' ? reading(d.humidity_pct, ' %') : '—'}</b></div></div><p class="muted">Last heartbeat: ${esc(seen(d))}</p></article>`).join('')
   return `<div class="page">${pageHead('Live telemetry', 'Monitoring', '')}
     <div class="stats"><div class="card stat"><div class="stat-label">Online</div><div class="stat-value">${online}<span class="muted"> / ${devices.length}</span></div></div><div class="card stat"><div class="stat-label">Reporting readings</div><div class="stat-value">${readings}</div></div><div class="card stat"><div class="stat-label">Refresh</div><div class="stat-value">8<span class="muted"> sec</span></div></div></div>
+    ${renderEnergyCharts()}
     <div class="section-heading"><h2>Controller readings</h2></div><div class="monitor-grid">${cards || '<div class="card empty">No controllers are assigned to this account.</div>'}</div></div>`
 }
 
