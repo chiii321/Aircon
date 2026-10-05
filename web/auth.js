@@ -70,7 +70,11 @@ form.addEventListener('submit', async event => {
       result = await api.auth.signInWithPassword({ email, password })
     } else {
       const response = await api.functions.invoke('username-login', { body: { username: email.toLowerCase(), password } })
-      if (response.error || !response.data?.session) throw new Error(response.data?.error || 'Invalid username or password, or email is not confirmed. Try again later if you have made several attempts.')
+      if (response.error) {
+        const body = response.error.context instanceof Response ? await response.error.context.json().catch(() => null) : null
+        throw new Error(body?.error || 'Could not reach username sign-in. Please try again or use your email address.')
+      }
+      if (!response.data?.session) throw new Error('Could not complete username sign-in. Please try again.')
       result = await api.auth.setSession(response.data.session)
     }
     if (result.error) {

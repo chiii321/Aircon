@@ -1,7 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.95.0'
-const headers = { 'Access-Control-Allow-Origin': 'https://inuvair.tech', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
-const reply = (status: number, body: object) => new Response(JSON.stringify(body), { status, headers })
+const allowedOrigins = new Set(['https://inuvair.tech', 'https://www.inuvair.tech', 'https://control-inuvair.vercel.app'])
+const responseHeaders = (request: Request) => ({ 'Access-Control-Allow-Origin': allowedOrigins.has(request.headers.get('origin') || '') ? request.headers.get('origin')! : 'https://inuvair.tech', 'Vary': 'Origin', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
 Deno.serve(async request => {
+  const headers = responseHeaders(request)
+  const reply = (status: number, body: object) => new Response(JSON.stringify(body), { status, headers })
   if (request.method === 'OPTIONS') return new Response('ok', { headers })
   if (request.method !== 'POST') return reply(405, { error: 'Method not allowed' })
   try {
