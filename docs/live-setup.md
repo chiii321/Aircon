@@ -15,9 +15,13 @@ The current firmware ID is `01`. The database has slots `01` through `11`; only 
 
 The sketch polls every five seconds, sends DHT22 readings when available, and acknowledges website commands after attempting IR transmission. An offline ESP32 cannot receive a new manual command; the website disables those buttons. Commands queued just before a disconnect may remain pending until reconnection.
 
+Reliability changes prepared on 2026-09-26 add a 60-second manual-command deadline, atomic acknowledgements, and database schedule validation. They are not yet deployed. Follow the [architecture rollout order](architecture.md#rollout-order) before relying on that behavior in the hosted system.
+
 ## Website account
 
-Use the owner email address you provided to create an account on the website. Confirm the email and sign in. Device access is assigned only after that address is verified. Do not send the password or Wi-Fi credentials to Codex.
+The administrator can create an email-prefilled registration link from Dashboard → Settings → Invite and manage users. The link is a convenience only: it is not expiring, revocable, or proof of authorization. New accounts must confirm their email, then the administrator must approve the account and assign devices. Do not send passwords or Wi-Fi credentials to Codex.
+
+To make registration truly invitation-only, disable public signups in the hosted Supabase Auth settings and replace these convenience links with server-verified, expiring invitation tokens. A static browser page cannot securely create or validate invite tokens. The allowlisted fleet administrator must still sign up using the provisioned owner email on a fresh database.
 
 The project's Auth redirect allowlist could not be inspected from this session. If the confirmation link opens another address after confirming, return to the website URL above and sign in there.
 

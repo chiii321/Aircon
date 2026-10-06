@@ -60,6 +60,7 @@ int lastScheduleMinute = -1;
 struct DailyWindow { uint16_t onMinute; uint16_t offMinute; };
 DailyWindow schedules[kMaxSchedules];
 uint8_t scheduleCount = 0;
+bool scheduleHeld = false;
 
 // Latest ELECTRA_AC ON/OFF captures supplied by the user (104-bit frames, 211 timings each).
 // Raw replay is used so the captured timing pattern is preserved exactly.
@@ -267,6 +268,10 @@ void pollCloud() {
     if (scheduleJson != settings.getString("schedules", "[]")) settings.putString("schedules", scheduleJson);
     loadSchedules(incoming);
   }
+  if (!data["schedule_hold"].isNull()) {
+    scheduleHeld = data["schedule_hold"].as<bool>();
+    settings.putBool("scheduleHold", scheduleHeld);
+  }
   JsonObjectConst command = data["command"].as<JsonObjectConst>();
   if (!command.isNull()) {
     const uint32_t id = command["id"].as<uint32_t>();
@@ -275,6 +280,13 @@ void pollCloud() {
       if (settings.getUInt("lastCommand", 0) == id) {
         acknowledgeCommand(id, true);
       } else {
+        const uint32_t expiresAt = command["expires_at_epoch"].as<uint32_t>();
+        const time_t now = time(nullptr);
+        if (expiresAt && (now < 1700000000 || now >= expiresAt)) {
+          Serial.println("Manual command expired or clock invalid; IR skipped.");
+          acknowledgeCommand(id, false);
+          return;
+        }
         const bool sent = sendAuxState(action == "on");
         if (sent) settings.putUInt("lastCommand", id);
         acknowledgeCommand(id, sent);
@@ -284,6 +296,7 @@ void pollCloud() {
 }
 
 void runDailySchedule() {
+  if (scheduleHeld) return;
   const time_t now = time(nullptr);
   if (now < 1700000000) return; // No valid NTP time yet.
   struct tm localTime;
@@ -355,6 +368,7 @@ void setup() {
   irReceiver.enableIRIn();
   irSender.begin();
   settings.begin("aircon", false);
+  scheduleHeld = settings.getBool("scheduleHold", false);
   JsonDocument cached;
   if (!deserializeJson(cached, settings.getString("schedules", "[]"))) {
     loadSchedules(cached.as<JsonArrayConst>());
