@@ -71,7 +71,7 @@ Aircon/
 └── docs/                      Setup, wiring, IR captures, and handoff notes
 ```
 
-The root planning notes, the retired root sketch, `database/`, and `tests/` are historical and not used by the current build.
+`CODEX_HANDOFF_AC_IOT.md` is the original project brief, kept for context. `PIN_CONNECTION_LAYOUT.md` is a quick pin reference.
 
 ## Required Arduino libraries
 
@@ -99,7 +99,7 @@ The sketch uses Wi-Fi, HTTPS polling, NTP, and locally cached daily schedule win
 
 Available serial commands: `status`, `dht`, `on`, `off`, `testir`, `capture`, and `replay`. `testir` sends repeated 38 kHz bursts for an optical emission check; a camera may filter them. `capture` records the next non-overflowed, non-repeat remote frame in RAM and pauses DHT reads for up to 60 seconds. `replay` transmits the captured raw timings at 38 kHz.
 
-Only `firmware/stage1_hardware_test/stage1_hardware_test.ino` is maintained. The root `esp32_stage1_hardware_test.ino` is a retired marker that deliberately stops compilation and points to the maintained sketch.
+Only `firmware/stage1_hardware_test/stage1_hardware_test.ino` is maintained.
 
 ## USB power
 
@@ -115,7 +115,7 @@ With the versions above installed, build without uploading:
 arduino-cli compile --fqbn esp32:esp32:esp32 firmware/stage1_hardware_test
 ```
 
-The old `tests/test_stage1.py` still targets the retired button behavior and is not part of current CI. The firmware compile checks integration; physical IR and network behavior require a device test.
+The firmware compile checks integration; physical IR and network behavior require a device test.
 
 ## Working together through GitHub
 

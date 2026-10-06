@@ -1,8 +1,0 @@
--- Historical draft. The deployed schema is tracked in ../supabase/migrations/.
--- Future tables may include:
---   devices       -- registered ESP32 devices and configuration metadata
---   schedules     -- desired local schedule definitions
---   commands      -- requested and acknowledged AC commands
---   telemetry     -- sensor and future energy-monitoring readings
---   device_events -- connectivity, execution, and diagnostic events
--- Do not place credentials, API keys, or service keys in this file.
