@@ -171,14 +171,3 @@ Read summaries relevant to the current task and verify their claims against the 
 
 
 - [2026-10-06: Push schedule updates](2026-10-06-push-schedule-updates.md) — selected website, sync and firmware updates prepared for GitHub.
-
-- [2026-10-06: First PCB components](2026-10-06-first-pcb-components-01a10f18.md) — draft verified; 80x60mm PCB1 clearance routes improved, all ESP32 holes named and other component holes identified; native DRC zero errors, saved and labeled preview refreshed; physical fit/ratings still require validation before fabrication.
-
-
-
-
-
-
-- [2026-10-06: Restore live website](2026-10-06-restore-live-website.md) — completed; verified recent build promoted back to production; main/release branch mismatch remains.
-
-- [2026-10-06: Compact schedule upload](2026-10-06-compact-schedule-upload.md) — compact header/upload spacing; deployment pending.
