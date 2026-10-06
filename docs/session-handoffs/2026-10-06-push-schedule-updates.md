@@ -1,8 +1,8 @@
 # Session handoff: Push schedule updates to GitHub
 
 - Updated: 2026-10-06T00:00:00+08:00
-- Status: in progress
-- Workspace / branch / commit: local checkout / codex/inuvair-vercel-release; commit pending.
+- Status: completed
+- Workspace / branch / commit: local checkout / codex/inuvair-vercel-release; 7a8c4fa; completion note updated locally after push.
 
 ## Objective and constraints
 User authorized pushing current website/schedule updates to GitHub. Preserve unrelated local files and exclude credentials/logs.
@@ -17,7 +17,9 @@ Include supporting firmware and status dependencies so repository matches deploy
 Reviewed selected file list and checked source for secret-key/token patterns; no matches in selected code. Website syntax previously passed. Firmware upload and physical AC operation remain unverified.
 
 ## Remaining work and blockers
-Commit and push; confirm remote branch SHA. Other local work remains unstaged.
+Push succeeded. git ls-remote confirmed 7a8c4fae9026c86b551923aafa0593dd06dfcbf3 on origin/codex/inuvair-vercel-release. Other local work remains unstaged.
 
 ## Next step
-Push codex/inuvair-vercel-release and record resulting SHA.
+Firmware upload still required; no further GitHub action pending.
+
+
