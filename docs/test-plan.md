@@ -1,6 +1,6 @@
 # Stage 1 verification
 
-> **Historical checklist.** Anything below that mentions physical buttons or GPIO 33/26 comes from the earlier standalone prototype. The current Wi-Fi sketch no longer reads buttons, so skip those parts and keep the rest. Follow [live setup](live-setup.md) for connection and dashboard verification.
+> **Historical checklist.** Anything below that mentions physical buttons, GPIO 33/26, or IR capture with a receiver comes from the earlier prototype. The current hardware has no buttons or IR receiver, so skip those parts and keep the rest. Follow [live setup](live-setup.md) for connection and dashboard verification.
 
 Use the maintained sketch and wiring in the README. No physical tests below have been performed by this audit.
 

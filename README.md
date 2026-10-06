@@ -1,37 +1,40 @@
 # IoT-Based Air Conditioning Control and Energy Monitoring System
 
-Capstone project workspace for an IoT-based air-conditioning controller. The current sketch adds Wi-Fi control and locally cached daily schedules to the DHT22 and AUX IR prototype. Physical AUX ON/OFF replay remains unverified.
+Capstone project workspace for INUVAIR, an IoT air-conditioning controller. Each ESP32 reads a DHT22 and sends IR ON/OFF commands to its air conditioners, following schedules set on the website. Physical AC response remains unverified.
 
 ## Current hardware
 
-- ESP32-WROOM-32, 30-pin board
-- DHT22 temperature and humidity sensor
-- IR receiver
-- Temporary harvested IR LED from the previous 3-pin transmitter module, driven by a 2N2222A; its wavelength and ratings are unconfirmed. A bare 5mm 940 nm IR LED is still planned.
-- Test air conditioner: AUX DC inverter, with original remote
-- Future implementation air conditioner: Panasonic window type
+The full parts list, battery arrangement, and power wiring are in the [hardware and power plan](INUVAIR_HARDWARE_AND_POWER_PLAN.md).
 
-## Current pin connections
+- ESP32-WROOM-32, 38-pin USB-C board
+- DHT22 temperature and humidity sensor
+- Two IR LEDs driven together by one 2N2222A on GPIO 25, so a single command reaches two ACs at once
+- Solar power: 5 V panel → CN3065 charger → 1S BMS with four 18650 cells in parallel (1S4P) → MT3608 boost converter set to 5.00 V → ESP32 5V/VIN
+- Test air conditioner: AUX DC inverter, with original remote
+- Implementation air conditioner: Panasonic window type
+
+The IR receiver and the physical ON/OFF buttons have been removed. GPIO 26, 27, and 33 are unused.
+
+## Pin connections
 
 | Component | Connection | ESP32 pin |
 | --- | --- | --- |
-| IR driver | Base through 1kΩ resistor | GPIO 25 |
-| IR driver | 2N2222A emitter | GND |
-| IR driver | 2N2222A collector | Temporary harvested IR LED cathode (-) |
-| Temporary harvested IR LED | Anode (+) through series resistor | 5V/VIN |
-| IR receiver | SIGNAL | GPIO 27 |
-| IR receiver | VCC | 3.3V |
-| IR receiver | GND | GND |
+| 2N2222A | Base, through a 1 kΩ resistor | GPIO 25 |
+| 2N2222A | Base, through a 10 kΩ pull-down | GND |
+| 2N2222A | Emitter | GND |
+| 2N2222A | Collector | Both IR LED cathodes (−) |
+| IR LED 1 | Anode (+), through its own 100 Ω resistor | 5V/VIN |
+| IR LED 2 | Anode (+), through its own 100 Ω resistor | 5V/VIN |
 | DHT22 | DATA | GPIO 32 |
 | DHT22 | VCC | 3.3V |
 | DHT22 | GND | GND |
-| Physical ON/OFF buttons | Removed from prototype | Not used |
+| MT3608 boost converter | OUT+ / OUT− | 5V/VIN / GND |
 
-See [docs/wiring.md](docs/wiring.md) for the temporary harvested-LED wiring. The final transmitter LED is planned to be a bare 5mm 940 nm IR LED, but its replacement series resistor must be selected from that LED's datasheet; do not assume the temporary LED has the same ratings.
+See [docs/wiring.md](docs/wiring.md) for the diagram and the checks to do before powering up. A bare 4-pin DHT22 also needs a 10 kΩ pull-up from DATA to 3.3V; a 3-pin module doesn't.
 
-Transmitter circuit: GPIO 25 → 1kΩ → 2N2222A base; emitter → GND; collector → harvested LED cathode; LED anode → its existing series resistor → board 5V/VIN. Keep grounds common. The harvested LED's wavelength and electrical ratings are unknown; do not infer them from the old module. Verify transistor pinout, LED polarity, resistor, and 5V rail before powering. `IR_SEND_INVERTED` remains false. Recommended: 100nF ceramic capacitor across IR receiver VCC/GND, close to the receiver.
+Before powering, verify the transistor's pinout, both LEDs' polarity, and that the MT3608 outputs 5.00 V. Check that the transistor and supply can handle both LED currents together. Keep all grounds common. `IR_SEND_INVERTED` stays false.
 
-Initially test 10–20 cm from the AC receiver. Phone-camera visibility depends on the camera and the LED; failure to see a flash alone does not prove the LED is off. Only the AC's physical response verifies transmission.
+Initially test 10–20 cm from the AC's IR sensor. Phone-camera visibility depends on the camera and the LED; failure to see a flash alone does not prove the LED is off. Only the AC's physical response verifies transmission.
 
 ## System architecture
 
@@ -44,8 +47,8 @@ Cloud / Supabase
   ↓
 ESP32
 ├── DHT22
-├── IR Receiver
-└── IR Transmitter → AC
+└── GPIO 25 → 2N2222A ─┬→ IR LED 1 → AC 1
+                       └→ IR LED 2 → AC 2 (same command)
 ```
 
 The ESP32 executes synced schedules locally. A browser does not need to remain open for an AC command to run at its scheduled time. After an offline reboot, schedule execution waits for a valid NTP clock.
@@ -71,7 +74,13 @@ Aircon/
 └── docs/                      Setup, wiring, IR captures, and handoff notes
 ```
 
-`CODEX_HANDOFF_AC_IOT.md` is the original project brief, kept for context. `PIN_CONNECTION_LAYOUT.md` is a quick pin reference.
+`INUVAIR_HARDWARE_AND_POWER_PLAN.md` is the current parts list and power design. `PIN_CONNECTION_LAYOUT.md` is a quick pin reference. `CODEX_HANDOFF_AC_IOT.md` is the original project brief, kept for context.
+
+## Firmware on this branch
+
+`firmware/stage1_hardware_test/stage1_hardware_test.ino` is the AUX test sketch. It replays captured ELECTRA_AC frames on GPIO 25 and reads the DHT22 on GPIO 32. It still contains `capture` and `replay` commands for an IR receiver on GPIO 27, written before the receiver was removed.
+
+As of 2026-10-06, the per-device Panasonic sketches (`devices/01` to `devices/11`) are on the `codex/inuvair-vercel-release` branch and not yet merged into `main`.
 
 ## Required Arduino libraries
 
@@ -84,26 +93,27 @@ Install these through the Arduino IDE Library Manager:
 
 CI compiles the sketch on every push with ESP32 board package **2.0.17**, IRremoteESP8266 **2.8.6**, DHT sensor library **1.4.6**, Adafruit Unified Sensor **1.1.15**, and ArduinoJson **7.4.3**. A local build has also succeeded with ESP32 core **3.3.11**.
 
-The sketch uses Wi-Fi, HTTPS polling, NTP, and locally cached daily schedule windows. GPIO 33 and 26 are not used for buttons.
+The sketch uses Wi-Fi, HTTPS polling, NTP, and locally cached daily schedule windows.
 
-## Run Stage 1
+## Run the test sketch
 
-1. Wire the remaining components as shown in [docs/wiring.md](docs/wiring.md), omitting the physical buttons. Follow [live setup](docs/live-setup.md) to fill the ignored local Wi-Fi credentials before upload.
+1. Wire the board as shown in [docs/wiring.md](docs/wiring.md). Follow [live setup](docs/live-setup.md) to fill the ignored local Wi-Fi credentials before upload.
 2. Install the required Arduino libraries.
 3. Open `firmware/stage1_hardware_test/stage1_hardware_test.ino` in Arduino IDE.
 4. Select an ESP32 board matching the ESP32-WROOM-32 and its correct serial port, then upload.
 5. Open Serial Monitor at **115200 baud**, with **Newline**, **Carriage return**, or **Both NL & CR** enabled. Commands are processed only when a line ends.
 6. Run `status`, then `dht` to confirm sensor readings.
-7. Aim the AUX remote at the IR receiver and press its ON and OFF commands separately. Copy each printed source/raw capture into a documented capture record.
-8. Use `on` and `off` to test the actual AC response. Both commands replay captured ELECTRA_AC raw frames (104 bits, 211 timings each) at 38 kHz; `status` prints the state bytes for each. If either fails, follow [IR troubleshooting](docs/ir-troubleshooting.md), including the `capture` / `replay` diagnostic. Earlier COOLIX captures are archived under `docs/ir-captures/`; see that folder's README for an unresolved ON/OFF labeling conflict.
+7. Use `on` and `off` to test the actual AC response. Both commands replay captured ELECTRA_AC raw frames (104 bits, 211 timings each) at 38 kHz through both LEDs; `status` prints the state bytes for each. If either fails, follow [IR troubleshooting](docs/ir-troubleshooting.md). Earlier captures are archived under `docs/ir-captures/`; see that folder's README for an unresolved ON/OFF labeling conflict.
 
-Available serial commands: `status`, `dht`, `on`, `off`, `testir`, `capture`, and `replay`. `testir` sends repeated 38 kHz bursts for an optical emission check; a camera may filter them. `capture` records the next non-overflowed, non-repeat remote frame in RAM and pauses DHT reads for up to 60 seconds. `replay` transmits the captured raw timings at 38 kHz.
+Serial commands for the current hardware: `status`, `dht`, `on`, `off`, and `testir`. `testir` sends repeated 38 kHz bursts for an optical emission check; a camera may filter them. The sketch also accepts `capture` and `replay`, but those need an IR receiver on GPIO 27, which the current hardware doesn't have.
 
 Only `firmware/stage1_hardware_test/stage1_hardware_test.ino` is maintained.
 
-## USB power
+## Power
 
-Upload once, disconnect the laptop, and power the board through its USB connector using a power bank. The sketch starts Wi-Fi without blocking boot and sends no IR automatically at boot. Keep the power bank on under this load. DHT22 readings run every two seconds; `dht` may return the library's cached reading within that interval.
+In normal use the board runs from the solar and battery chain in the [hardware and power plan](INUVAIR_HARDWARE_AND_POWER_PLAN.md), with the MT3608 feeding regulated 5 V into the ESP32's 5V/VIN pin. Set the MT3608 to 5.00 V before connecting it. For bench testing, the board can run from its USB-C port instead.
+
+The sketch starts Wi-Fi without blocking boot and sends no IR automatically at boot. DHT22 readings run every two seconds; `dht` may return the library's cached reading within that interval.
 
 Follow [the hardware test checklist](docs/test-plan.md) before marking Stage 1 complete.
 
@@ -133,7 +143,8 @@ Pull with `git pull --ff-only` before editing/uploading. Use small branches/PRs 
 - [ ] ESP32 01 reports online and sends DHT22 telemetry to the website
 - [ ] Website ON/OFF command acknowledgement observed from ESP32 01
 - [ ] Daily schedule boundary tested on the ESP32
-- [ ] Power-bank idle endurance and restart tested
+- [ ] Both IR LEDs reach their ACs from the final mounting position
+- [ ] Solar and battery runtime and restart tested
 
 ## Future phases
 
@@ -147,7 +158,7 @@ Pull with `git pull --ff-only` before editing/uploading. Use small branches/PRs 
 ## Unresolved questions
 
 - Which ELECTRA_AC frame really turns the AC ON? The firmware labels and the 2026-09-18 capture records disagree; see [IR captures](docs/ir-captures/README.md).
-- Which exact DHT22 module variant is used, and does it require an external pull-up resistor on DATA?
-- Does physical replay with the temporary transistor-driven LED reliably reproduce the confirmed ON/OFF captures?
-- Does the transistor driver and datasheet-sized resistor provide reliable IR range?
+- Is the DHT22 a 3-pin module or a bare 4-pin sensor? The bare sensor needs the 10 kΩ pull-up on DATA.
+- Does replay through the two-LED transistor driver reliably reproduce the captured ON/OFF frames on both ACs?
+- Can the 2N2222A, its 1 kΩ base resistor, and the 5 V supply drive both LEDs together with reliable range?
 - What energy-meter hardware and electrical isolation approach will be selected for the future energy-monitoring phase?

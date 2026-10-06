@@ -1,40 +1,58 @@
-# Stage 1 Wiring Reference
+# Wiring Reference
 
-Use the listed connections for the current ESP32-WROOM-32 30-pin board hardware test. Keep all grounds common.
+Connections for the current hardware: an ESP32-WROOM-32 38-pin USB-C board, a DHT22, and two IR LEDs on one transistor driver. The parts list and the full solar and battery wiring are in the [hardware and power plan](../INUVAIR_HARDWARE_AND_POWER_PLAN.md). Keep all grounds common.
 
 | Device | Pin | Connect to |
 | --- | --- | --- |
-| 2N2222A | BASE | GPIO 25 through 1kΩ resistor |
+| 2N2222A | BASE | GPIO 25 through a 1kΩ resistor |
+| 2N2222A | BASE | GND through a 10kΩ pull-down |
 | 2N2222A | EMITTER | GND |
-| 2N2222A | COLLECTOR | Temporary harvested IR LED cathode (-) |
-| Temporary harvested IR LED | Anode (+) | ESP32 5V/VIN through its series current-limiting resistor |
-| IR receiver | SIGNAL | ESP32 GPIO 27 |
-| IR receiver | VCC | ESP32 3.3V |
-| IR receiver | GND | ESP32 GND |
+| 2N2222A | COLLECTOR | IR LED 1 cathode (−) and IR LED 2 cathode (−) |
+| IR LED 1 | Anode (+) | ESP32 5V/VIN through its own 100Ω resistor |
+| IR LED 2 | Anode (+) | ESP32 5V/VIN through its own 100Ω resistor |
 | DHT22 | DATA | ESP32 GPIO 32 |
 | DHT22 | VCC | ESP32 3.3V |
 | DHT22 | GND | ESP32 GND |
-| Physical ON/OFF buttons | Removed from prototype | Not connected |
+| MT3608 boost converter | OUT+ | ESP32 5V/VIN (set to 5.00 V first) |
+| MT3608 boost converter | OUT− | ESP32 GND |
+
+The IR receiver and the physical ON/OFF buttons have been removed. GPIO 26, 27, and 33 are unused.
 
 ## IR transmitter
 
-For current testing, use the **temporary harvested IR LED from the previous 3-pin transmitter module**. Its wavelength and electrical ratings are unconfirmed, so do not label it 940 nm or assume a current rating. Keep its existing series resistor; verify the actual resistor value and wiring before power-up. The final transmitter LED is planned to be a bare 5mm 940 nm IR LED. When it is available, choose its series resistor using that LED's datasheet rather than assuming the temporary LED's resistor is suitable.
+Both LEDs share one driver, so they always send the same command at the same time. Aim one LED at each AC's IR sensor. Both ACs must accept the same command.
 
 ```text
-GPIO 25 ── 1kΩ ── 2N2222A BASE
-                    EMITTER ── GND
-                    COLLECTOR ── temporary harvested IR LED cathode (-)
-5V/VIN ── series resistor ── temporary harvested IR LED anode (+)
+GPIO 25 ── 1kΩ ──┬── 2N2222A BASE
+                 └── 10kΩ ── GND
+
+2N2222A EMITTER ── GND
+2N2222A COLLECTOR ──┬── IR LED 1 cathode (−)
+                    └── IR LED 2 cathode (−)
+
+5V/VIN ── 100Ω ── IR LED 1 anode (+)
+5V/VIN ── 100Ω ── IR LED 2 anode (+)
 ```
 
-Verify BASE/COLLECTOR/EMITTER against the exact 2N2222A package pinout; pin order varies by manufacturer and package. The flat face alone is not enough to assume the pin order. Identify LED polarity from its datasheet or with diode-test mode. Measure the board's 5V/VIN rail and keep all grounds common. Never connect 5V/VIN to an ESP32 GPIO or 3V3.
+The 10kΩ pull-down keeps the transistor, and both LEDs, off while the ESP32 boots. GPIO HIGH drives the transistor on, so keep `IR_SEND_INVERTED=false`.
 
-GPIO HIGH drives the transistor on, so retain `IR_SEND_INVERTED=false`. Recommended: a **100nF ceramic capacitor across the IR receiver's VCC and GND**, close to its power pins.
+Before powering up:
 
-## Notes
+- Check BASE, COLLECTOR, and EMITTER against your exact 2N2222A's datasheet. Pin order varies by manufacturer and package, so the flat face alone isn't enough to tell.
+- Identify each LED's polarity from its datasheet or with a multimeter's diode-test mode.
+- Check that the transistor and the 5 V supply can handle both LED currents flowing together.
+- Never connect 5V/VIN to an ESP32 GPIO or the 3V3 pin.
 
-- The current test AC is an AUX DC inverter. Its original remote is needed to capture genuine commands.
-- Verify LED polarity and the actual series resistor before powering. The harvested LED's wavelength and ratings are unknown. Phone cameras vary in IR sensitivity, so camera visibility is not a definitive emission test. Initially test 10–20 cm from the AC receiver; physical AC response is required to verify transmission and range.
-- DHT22 modules vary. This wiring reference does not assume an onboard or external DATA pull-up resistor; confirm the requirement for the specific module if readings fail.
-- Power the development board via its USB connector for power-bank operation. Do not connect USB 5V to the 3V3 rail or a GPIO. Verify the power bank does not shut down automatically at idle.
-- The current sketch controls the AC through Serial, daily schedules, or authenticated website commands. See [live setup](live-setup.md) for Wi-Fi provisioning.
+## DHT22
+
+Power the DHT22 from 3.3V and read it on GPIO 32. A 3-pin DHT22 module needs nothing extra. A bare 4-pin DHT22 sensor also needs a 10kΩ pull-up from DATA to 3.3V.
+
+## Power
+
+Normal operation runs from the solar and battery chain: 5 V solar panel → CN3065 charger → 1S BMS with four 18650 cells in parallel → MT3608 boost converter → ESP32 5V/VIN. Set the MT3608 output to **5.00 V before connecting it to the ESP32**. The [hardware and power plan](../INUVAIR_HARDWARE_AND_POWER_PLAN.md) has the terminal-by-terminal wiring.
+
+## Testing
+
+- Start 10–20 cm from each AC's IR sensor, then move out to the real mounting distance.
+- Phone cameras vary in IR sensitivity, so not seeing a flash doesn't prove an LED is off. Only the AC's physical response verifies transmission.
+- See [live setup](live-setup.md) for Wi-Fi provisioning and [IR troubleshooting](ir-troubleshooting.md) if an AC doesn't respond.

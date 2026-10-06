@@ -3,56 +3,53 @@
 > Quick reference. [docs/wiring.md](docs/wiring.md) is the maintained wiring guide; check it first if the two ever disagree.
 
 ## Board
-ESP32-WROOM-32, 30-pin development board
+ESP32-WROOM-32, 38-pin USB-C development board
 
 ## Connections
 
 | Component | Pin | ESP32 |
 |---|---|---|
 | 2N2222A | BASE through 1kΩ | GPIO 25 |
+| 2N2222A | BASE through 10kΩ pull-down | GND |
 | 2N2222A | EMITTER | GND |
-| 2N2222A | COLLECTOR | Harvested LED cathode (-) |
-| Harvested IR LED | Anode (+) through 100Ω | 5V/VIN (verify board rail) |
-| IR Receiver (KY-022 / VS1838B style) | S / SIGNAL | GPIO 27 |
-| IR Receiver | + / VCC | 3.3V |
-| IR Receiver | - / GND | GND |
-| DHT22 3-pin module | DATA / OUT | GPIO 32 |
-| DHT22 3-pin module | VCC | 3.3V |
-| DHT22 3-pin module | GND | GND |
-| Physical ON/OFF buttons | Removed | GPIO 33 and 26 unused |
+| 2N2222A | COLLECTOR | IR LED 1 and IR LED 2 cathodes (−) |
+| IR LED 1 | Anode (+) through its own 100Ω | 5V/VIN |
+| IR LED 2 | Anode (+) through its own 100Ω | 5V/VIN |
+| DHT22 | DATA | GPIO 32 |
+| DHT22 | VCC | 3.3V |
+| DHT22 | GND | GND |
+| MT3608 boost converter | OUT+ (5.00 V) / OUT− | 5V/VIN / GND |
+| IR receiver, ON/OFF buttons | Removed | GPIO 26, 27, 33 unused |
 
 ## Simple Layout
 
 ```text
 ESP32-WROOM-32
-30-pin Dev Board
+38-pin USB-C Dev Board
 
-3V3  -----------------------------------+--> DHT22 VCC
-                                       +--> IR Receiver VCC
+3V3  ---------------------------------------> DHT22 VCC
 
 GND  -----------------------------------+--> DHT22 GND
-                                       +--> IR Receiver GND
                                        +--> 2N2222A EMITTER
+                                       +--> 10kΩ base pull-down
+                                       +--> MT3608 OUT-
+
+5V/VIN <------------------------------------ MT3608 OUT+ (5.00 V)
+5V/VIN ----- 100Ω ------------------------> IR LED 1 anode (+)
+5V/VIN ----- 100Ω ------------------------> IR LED 2 anode (+)
 
 GPIO 32 ------------------------------------> DHT22 DATA
 
-GPIO 27 <------------------------------------ IR Receiver SIGNAL
+GPIO 25 ---- 1kΩ ---- 2N2222A BASE (10kΩ to GND)
+                     COLLECTOR <---- IR LED 1 and IR LED 2 cathodes (-)
 
-GPIO 25 ---- 1kΩ ---- 2N2222A BASE
-                     COLLECTOR ---- harvested IR LED cathode (-)
-5V/VIN ----- 100Ω ------------------ harvested IR LED anode (+)
-
-GPIO 33, GPIO 26 --- unused (buttons removed)
+GPIO 26, GPIO 27, GPIO 33 --- unused
 ```
 
 ## Notes
 
-- The current sketch no longer reads physical buttons. See [docs/live-setup.md](docs/live-setup.md) for Wi-Fi and website setup.
-
-- Start the DHT22 and IR receiver at 3.3V.
-- Current emitter: temporary harvested IR LED from previous transmitter module. The module board is not used; LED wavelength, current rating, and polarity are unconfirmed. A bare 5mm 940 nm LED is planned, not yet available.
-- Verify LED polarity, exact 2N2222A pinout and board 5V/VIN rail before powering. The 100Ω test value does not establish a safe current for an unknown LED. Keep all grounds common and `IR_SEND_INVERTED=false`.
-- Recommended: 100nF ceramic capacitor across IR receiver VCC/GND close to the receiver.
-- Start 10–20 cm from the AC receiver. A phone camera may help detect IR emission, but actual AC response is required to verify transmission.
-- Keep the IR transmitter pointed toward the AC's IR receiver.
-- Keep the IR receiver positioned so the AUX remote can be aimed directly at it during capture.
+- Set the MT3608 output to 5.00 V before connecting it to the ESP32.
+- Verify each LED's polarity and the exact 2N2222A pinout before powering. Keep all grounds common and `IR_SEND_INVERTED=false`.
+- Check that the transistor and supply can handle both LED currents together.
+- A bare 4-pin DHT22 also needs a 10kΩ pull-up from DATA to 3.3V; a 3-pin module doesn't.
+- Aim one IR LED at each AC's IR sensor. Start 10–20 cm away; only the AC's physical response verifies transmission.
