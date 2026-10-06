@@ -24,6 +24,19 @@ function sameHash(a: string, b: string) {
   return difference === 0
 }
 
+function weeklyWindows(daily: { on_time: string; off_time: string }[], bookings: { weekday: number; start_time: string; end_time: string }[]) {
+  const windows: { weekday: number; on_time: string; off_time: string }[] = []
+  for (let weekday = 1; weekday <= 7; weekday++) {
+    const slots = [...daily.map(slot => ({ start: slot.on_time.slice(0, 5), end: slot.off_time.slice(0, 5) })), ...bookings.filter(slot => slot.weekday === weekday).map(slot => ({ start: slot.start_time.slice(0, 5), end: slot.end_time.slice(0, 5) }))].sort((a, b) => a.start.localeCompare(b.start))
+    for (const slot of slots) {
+      const previous = windows.at(-1)
+      if (previous?.weekday === weekday && slot.start <= previous.off_time) previous.off_time = slot.end > previous.off_time ? slot.end : previous.off_time
+      else windows.push({ weekday, on_time: slot.start, off_time: slot.end })
+    }
+  }
+  return windows
+}
+
 export async function handleDeviceSync(request: Request) {
   if (request.method !== 'POST') return reply({ error: 'POST required' }, 405)
   const deviceId = request.headers.get('x-device-id') ?? ''
@@ -41,7 +54,21 @@ export async function handleDeviceSync(request: Request) {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return reply({ error: 'JSON object required' }, 400)
     body = parsed
   } catch { return reply({ error: 'Invalid JSON' }, 400) }
+  if (body.type === 'sleep') {
+    const seconds = body.sleep_seconds
+    if (!Number.isSafeInteger(seconds) || Number(seconds) < 1 || Number(seconds) > 21600) return reply({ error: 'Invalid sleep duration' }, 400)
+    const now = Date.now()
+    const { error } = await db.from('devices').update({
+      last_seen_at: new Date(now).toISOString(),
+      sleep_until: new Date(now + Number(seconds) * 1000).toISOString(),
+      power_mode: null,
+    }).eq('id', deviceId)
+    if (error) return reply({ error: 'Sleep report failed' }, 500)
+    return reply({ recorded: true })
+  }
   if (body.type === 'poll') {
+    const powerMode = body.power_mode ?? null
+    if (powerMode !== null && powerMode !== 'active' && powerMode !== 'modem_sleep') return reply({ error: 'Invalid power mode' }, 400)
     const temperature = body.temperature_c
     const humidity = body.humidity_pct
     const readingsValid = (temperature === null || (typeof temperature === 'number' && temperature >= -40 && temperature <= 80))
@@ -49,6 +76,8 @@ export async function handleDeviceSync(request: Request) {
     if (!readingsValid) return reply({ error: 'Invalid sensor values' }, 400)
     const { error: heartbeatError } = await db.from('devices').update({
       last_seen_at: new Date().toISOString(),
+      sleep_until: null,
+      power_mode: powerMode,
       temperature_c: temperature,
       humidity_pct: humidity,
     }).eq('id', deviceId)
@@ -63,15 +92,20 @@ export async function handleDeviceSync(request: Request) {
       status: 'failed', error_message: 'Command expired before delivery',
     }).eq('device_id', deviceId).eq('status', 'queued').lte('expires_at', now)
     if (expiryError) return reply({ error: 'Command expiry failed' }, 500)
-    const [{ data: commands, error: commandsError }, { data: device, error: deviceError }, { data: schedules, error: schedulesError }] = await Promise.all([
+    const [{ data: commands, error: commandsError }, { data: device, error: deviceError }, { data: schedules, error: schedulesError }, { data: bookings, error: bookingsError }] = await Promise.all([
       db.from('device_commands').select('id,action,expires_at').eq('device_id', deviceId).eq('status', 'queued').gt('expires_at', now).order('id').limit(1),
       db.from('devices').select('schedule_hold').eq('id', deviceId).single(),
       db.from('device_schedules').select('id,on_time,off_time,enabled').eq('device_id', deviceId).eq('enabled', true).order('on_time'),
+      db.from('weekly_room_assignments').select('weekday,start_time,end_time').eq('device_id', deviceId).order('weekday').order('start_time').limit(5000),
     ])
-    if (commandsError || deviceError || schedulesError) return reply({ error: 'Sync failed' }, 500)
+    if (commandsError || deviceError || schedulesError || bookingsError) return reply({ error: 'Sync failed' }, 500)
+    const weeklySchedules = weeklyWindows(schedules ?? [], bookings ?? [])
+    if (weeklySchedules.length > 512) return reply({ error: 'Too many schedule windows' }, 500)
     const localNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }))
     const minute = localNow.getHours() * 60 + localNow.getMinutes()
-    const inScheduledClass = (schedules ?? []).some(schedule => {
+    const weekday = localNow.getDay() || 7
+    const inScheduledClass = weeklySchedules.some(schedule => {
+      if (schedule.weekday !== weekday) return false
       const [onHour, onMinute] = String(schedule.on_time).slice(0, 5).split(':').map(Number)
       const [offHour, offMinute] = String(schedule.off_time).slice(0, 5).split(':').map(Number)
       return minute >= onHour * 60 + onMinute && minute < offHour * 60 + offMinute
@@ -98,7 +132,7 @@ export async function handleDeviceSync(request: Request) {
       }
     }
     const command = commands?.[0]
-    return reply({ command: command ? { ...command, expires_at_epoch: Math.floor(Date.parse(command.expires_at) / 1000) } : null, schedules: schedules ?? [], schedule_hold: device.schedule_hold, server_time: new Date().toISOString() })
+    return reply({ command: command ? { ...command, expires_at_epoch: Math.floor(Date.parse(command.expires_at) / 1000) } : null, schedules: schedules ?? [], weekly_schedules: weeklySchedules, schedule_hold: device.schedule_hold, server_time: new Date().toISOString() })
   }
   if (body.type === 'ack') {
     const id = body.command_id

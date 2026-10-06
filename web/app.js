@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.95.0?bundle'
 import { readScheduleFile, DAYS } from './schedule-import.js'
+import { deviceStatus, devicePowerMode, estimatedAcState } from './device-status.js'
 
 const api = createClient('https://jvdudsbtcjojbgtanbzo.supabase.co', 'sb_publishable_B4ZZZ62G7PF8sNcKGxWA0A_MKmvhTcF')
 const screen = document.getElementById('screen')
@@ -55,8 +56,10 @@ screen.addEventListener('change', event => { if (event.target.id !== 'temperatur
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 const route = () => decodeURIComponent(location.hash.slice(1) || 'overview')
 const selectedId = () => route().startsWith('device/') ? route().split('/')[1] : null
-const deviceStatus = d => !d.provisioned ? 'unprovisioned' : d.last_seen_at && Date.now() - new Date(d.last_seen_at).getTime() < 30000 ? 'online' : 'offline'
-const badge = d => { const status = deviceStatus(d); return `<span class="badge ${status}">${status === 'unprovisioned' ? 'Not provisioned' : status === 'online' ? 'Online' : 'Offline'}</span>` }
+const badge = d => { const status = deviceStatus(d); const idle = devicePowerMode(d) === 'modem_sleep'; return `<span class="badge ${idle ? 'idle' : status}">${idle ? 'Idle sleep · online' : status === 'unprovisioned' ? 'Not provisioned' : status === 'sleeping' ? 'Sleeping' : status === 'online' ? 'Online' : 'Offline'}</span>` }
+const hasReading = d => ['online', 'sleeping'].includes(deviceStatus(d))
+const wakeText = d => deviceStatus(d) === 'sleeping' ? `<p class="muted">Last reported readings · expected wake: ${esc(formatDate(d.sleep_until))}</p>` : ''
+const powerText = d => deviceStatus(d) !== 'online' ? '' : `<p class="muted">${devicePowerMode(d) === 'modem_sleep' ? 'Wi-Fi modem sleep is active. New schedules and commands return the controller to active mode.' : devicePowerMode(d) === 'active' ? 'Active mode · idle sleep starts after 10 minutes without commands, schedule changes, or an active timer window.' : 'Power mode not reported. Upload the latest firmware to see idle sleep status.'}</p>`
 const seen = d => d.last_seen_at ? new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' }).format(new Date(d.last_seen_at)) : 'Never seen'
 const reading = (value, unit) => value == null ? '—' : `${Number(value).toFixed(1)}${unit}`
 const temperature = value => {
@@ -70,7 +73,7 @@ const pageHead = (label, title, sub) => `<h1>${title}</h1>${sub ? `<p class="lea
 const banner = (title, body, warn = false) => `<div class="banner ${warn ? 'warn' : ''}"><span aria-hidden="true">${warn ? '◉' : '✳'}</span><div><strong>${title}</strong>${body}</div></div>`
 
 function table(rows) {
-  return `<div class="card table-wrap" tabindex="0" role="region" aria-label="Scrollable table"><table class="device-table"><thead><tr><th>Device</th><th>ID</th><th>Connection</th><th>Temperature</th><th>Last seen</th><th></th></tr></thead><tbody>${rows.map(d => `<tr data-device="${esc(d.id)}" tabindex="0" aria-label="Open device ${esc(d.id)}"><td><strong>${esc(d.name)}</strong><br><small>${esc(d.model || 'Controller slot')}</small></td><td><span class="device-id">${esc(d.id)}</span></td><td>${badge(d)}</td><td>${deviceStatus(d) === 'online' ? temperature(d.temperature_c) : '—'}</td><td>${esc(seen(d))}</td><td>↗</td></tr>`).join('')}</tbody></table></div>`
+  return `<div class="card table-wrap" tabindex="0" role="region" aria-label="Scrollable table"><table class="device-table"><thead><tr><th>Device</th><th>ID</th><th>Connection</th><th>Temperature</th><th>Last seen</th><th></th></tr></thead><tbody>${rows.map(d => `<tr data-device="${esc(d.id)}" tabindex="0" aria-label="Open device ${esc(d.id)}"><td><strong>${esc(d.name)}</strong></td><td><span class="device-id">${esc(d.id)}</span></td><td>${badge(d)}</td><td>${hasReading(d) ? temperature(d.temperature_c) : '—'}</td><td>${esc(seen(d))}${wakeText(d)}</td><td>↗</td></tr>`).join('')}</tbody></table></div>`
 }
 
 function renderEnergyCharts() {
@@ -85,11 +88,11 @@ function renderOverview() {
   const assignedDeviceCount = isAdmin() ? devices.length : new Set(weeklyBookings.map(booking => booking.device_id)).size
   const online = devices.filter(d => deviceStatus(d) === 'online').length
   const provisioned = devices.filter(d => d.provisioned).length
-  const attention = devices.filter(d => deviceStatus(d) !== 'online').length
+  const attention = devices.filter(d => ['offline', 'unprovisioned'].includes(deviceStatus(d))).length
   const workspace = isAdmin()
     ? `<div class="overview-actions"><a class="overview-action" href="#monitoring"><span>◉</span><strong>Live monitoring</strong><b>Open monitoring →</b></a><a class="overview-action" href="#devices"><span>▤</span><strong>Device registry</strong><b>Manage devices →</b></a></div>`
     : `<div class="overview-actions"><a class="overview-action" href="#alerts"><span>♧</span><strong>Notifications</strong><b>View notifications →</b></a></div>`
-  const assignedRooms = devices.map(d => `<article class="card assigned-room"><div class="panel-top"><div><strong>${esc(d.name)}</strong><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="reading-grid"><div class="reading"><label>Temperature</label><b>${deviceStatus(d) === 'online' ? temperature(d.temperature_c) : '—'}</b></div><div class="reading"><label>Humidity</label><b>${deviceStatus(d) === 'online' ? reading(d.humidity_pct, ' %') : '—'}</b></div><div class="reading"><label>AC state</label><b>Unknown</b></div></div><p class="muted">Last heartbeat: ${esc(seen(d))}</p></article>`).join('')
+  const assignedRooms = devices.map(d => `<article class="card assigned-room"><div class="panel-top"><div><strong>${esc(d.name)}</strong><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="reading-grid"><div class="reading"><label>Temperature</label><b>${hasReading(d) ? temperature(d.temperature_c) : '—'}</b></div><div class="reading"><label>Humidity</label><b>${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</b></div><div class="reading"><label>AC state (estimated)</label><b>${estimatedAcState(d)}</b></div></div>${wakeText(d)}<p class="muted">Last active: ${esc(seen(d))}</p></article>`).join('')
   const checkinCards = renderClassCheckins()
   return `<div class="page overview-page"><div class="overview-brand"><span class="logo-box"><img class="brand-symbol" src="assets/inuvair-logo-light-v2.svg" alt=""></span><span class="brand-name">INUVAIR</span><span class="brand-caption">ROOM CLIMATE</span></div>
     ${classResponseMessage ? banner('Schedule response saved', esc(classResponseMessage)) : ''}
@@ -126,7 +129,7 @@ function deviceName(id) {
 function renderMonitoring() {
   const online = devices.filter(d => deviceStatus(d) === 'online').length
   const readings = devices.filter(d => deviceStatus(d) === 'online' && (d.temperature_c != null || d.humidity_pct != null)).length
-  const cards = devices.map(d => `<article class="card monitor-card"><div class="panel-top"><div><strong>${esc(d.name)}</strong><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="monitor-readings"><div><label>Temperature</label><b>${deviceStatus(d) === 'online' ? temperature(d.temperature_c) : '—'}</b></div><div><label>Humidity</label><b>${deviceStatus(d) === 'online' ? reading(d.humidity_pct, ' %') : '—'}</b></div></div><p class="muted">Last heartbeat: ${esc(seen(d))}</p></article>`).join('')
+  const cards = devices.map(d => `<article class="card monitor-card"><div class="panel-top"><div><strong>${esc(d.name)}</strong><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="monitor-readings"><div><label>Temperature</label><b>${hasReading(d) ? temperature(d.temperature_c) : '—'}</b></div><div><label>Humidity</label><b>${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</b></div></div>${wakeText(d)}<p class="muted">Last active: ${esc(seen(d))}</p></article>`).join('')
   return `<div class="page">${pageHead('Live telemetry', 'Monitoring', '')}
     <div class="stats"><div class="card stat"><div class="stat-label">Online</div><div class="stat-value">${online}<span class="muted"> / ${devices.length}</span></div></div><div class="card stat"><div class="stat-label">Reporting readings</div><div class="stat-value">${readings}</div></div><div class="card stat"><div class="stat-label">Refresh</div><div class="stat-value">8<span class="muted"> sec</span></div></div></div>
     ${renderEnergyCharts()}
@@ -134,9 +137,9 @@ function renderMonitoring() {
 }
 
 function renderScheduling() {
-  const cards = [...devices].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })).map((device, index) => {
+  const cards = [...devices].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })).map(device => {
     const bookings = weeklyBookings.filter(booking => booking.device_id === device.id)
-    const room = bookings[0]?.room_number || String(301 + index)
+    const room = String(300 + Number(device.id))
     const bookingRows = bookings.map(booking => `<tr><td>${esc(displayName(profileNames.find(profile => profile.user_id === booking.user_id)) || booking.user_email)}</td><td>${esc(DAYS[booking.weekday - 1])}</td><td>${esc(booking.start_time.slice(0, 5))}–${esc(booking.end_time.slice(0, 5))}</td><td>${esc(booking.notes)}</td><td><button class="secondary remove-booking" data-booking-id="${esc(booking.id)}" type="button">Remove</button></td></tr>`).join('')
     const timers = allSchedules.filter(schedule => schedule.device_id === device.id)
     const timerRows = timers.map(schedule => `<tr><td>${esc(schedule.on_time.slice(0, 5))}</td><td>${esc(schedule.off_time.slice(0, 5))}</td><td><span class="badge ${schedule.enabled ? 'online' : 'offline'}">${schedule.enabled ? 'Enabled' : 'Paused'}</span></td></tr>`).join('')
@@ -145,10 +148,16 @@ function renderScheduling() {
   return `<div class="page">${pageHead('Room routines', 'Scheduling', '')}${renderScheduleImport()}<div class="room-schedule-grid">${cards || '<div class="card empty">No controllers are assigned to this account.</div>'}</div></div>`
 }
 
+function roomDeviceId(room) {
+  const number = Number(room) - 300
+  if (!/^\d+$/.test(room) || !Number.isInteger(number) || number < 1) return ''
+  return devices.find(device => Number(device.id) === number)?.id || ''
+}
+
 function renderScheduleImport() {
   const rooms = [...new Set(scheduleImport?.rows.map(row => row.room) || [])]
-  const preview = scheduleImport ? `<div class="section-heading"><h3>Verified bookings</h3><small>${scheduleImport.rows.length} rows · Asia/Manila</small></div>${scheduleImport.errors.length ? `<div class="import-errors" role="alert"><strong>Fix these rows in Excel and upload again</strong><ul>${scheduleImport.errors.map(error => `<li>${esc(error)}</li>`).join('')}</ul></div>` : `<div class="import-mappings">${rooms.map(room => `<div class="field"><label for="map-room-${esc(room)}">Room ${esc(room)}</label><select id="map-room-${esc(room)}" class="settings-select room-mapping" data-room="${esc(room)}"><option value="">Choose controller</option>${devices.map(device => `<option value="${esc(device.id)}" ${roomMappings[room] === device.id ? 'selected' : ''}>${esc(device.name)} · ${esc(device.id)}</option>`).join('')}</select></div>`).join('')}</div>`}<div class="table-wrap" tabindex="0" role="region" aria-label="Excel booking preview"><table class="device-table"><thead><tr><th>Excel row</th><th>User</th><th>Room</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${scheduleImport.rows.map(row => `<tr><td>${row.row}</td><td>${esc(row.email)}</td><td>${esc(row.room)}</td><td>${esc(DAYS[row.day - 1] || 'Invalid')}</td><td>${esc(row.start)}–${esc(row.end)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table></div><div class="button-row"><button class="primary" id="save-import" type="button" ${importBusy || scheduleImport.errors.length || weeklyLoadError ? 'disabled' : ''}>${importBusy ? 'Saving…' : 'Review changes'}</button><button class="secondary" id="clear-import" type="button" ${importBusy ? 'disabled' : ''}>Clear preview</button></div>` : ''
-  return `<section class="card panel schedule-import"><div class="panel-top"><div><h2>Weekly room bookings</h2></div><a class="secondary template-download" href="templates/inuvair-weekly-room-schedule-template.xlsx" download>Download Excel template</a></div><div class="field"><label for="schedule-file">Upload schedule (.xlsx, up to 2 MB / 500 bookings)</label><input id="schedule-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ${importBusy ? 'disabled' : ''}></div><p class="status-text" id="import-status" role="status">${esc(importMessage)}</p>${weeklyLoadError ? `<p class="error-text">${esc(weeklyLoadError)}</p>` : ''}${preview}</section>`
+  const preview = scheduleImport ? `<div class="section-heading"><h3>Verified bookings</h3><small>${scheduleImport.rows.length} rows · Asia/Manila</small></div>${scheduleImport.errors.length ? `<div class="import-errors" role="alert"><strong>Fix these rows in Excel and upload again</strong><ul>${scheduleImport.errors.map(error => `<li>${esc(error)}</li>`).join('')}</ul></div>` : rooms.some(room => !roomMappings[room]) ? `<p class="error-text">No matching ESP32 for room(s): ${rooms.filter(room => !roomMappings[room]).map(esc).join(', ')}.</p>` : ''}<div class="table-wrap" tabindex="0" role="region" aria-label="Excel booking preview"><table class="device-table"><thead><tr><th>Excel row</th><th>User</th><th>Room</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${scheduleImport.rows.map(row => `<tr><td>${row.row}</td><td>${esc(row.email)}</td><td>${esc(row.room)}</td><td>${esc(DAYS[row.day - 1] || 'Invalid')}</td><td>${esc(row.start)}–${esc(row.end)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table></div><div class="button-row"><button class="primary" id="save-import" type="button" ${importBusy || scheduleImport.errors.length || rooms.some(room => !roomMappings[room]) || weeklyLoadError ? 'disabled' : ''}>${importBusy ? 'Saving…' : 'Review changes'}</button><button class="secondary" id="clear-import" type="button" ${importBusy ? 'disabled' : ''}>Clear preview</button></div>` : ''
+  return `<section class="card panel schedule-import"><div class="panel-top"><div><h2>Weekly room bookings</h2></div><div class="button-row"><a class="secondary template-download" href="templates/inuvair-weekly-room-schedule-template.xlsx" download>Download Excel template</a><button class="danger" id="remove-schedule" type="button" ${importBusy || weeklyLoadError || !weeklyBookings.length ? 'disabled' : ''}>Remove schedule</button></div></div><div class="field"><label for="schedule-file">Upload schedule</label><input id="schedule-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ${importBusy ? 'disabled' : ''}></div><p class="status-text" id="import-status" role="status">${esc(importMessage)}</p>${weeklyLoadError ? `<p class="error-text">${esc(weeklyLoadError)}</p>` : ''}${preview}</section>`
 }
 
 function confirmScheduleImport(rows, mappings) {
@@ -156,7 +165,7 @@ function confirmScheduleImport(rows, mappings) {
     const dialog = document.createElement('dialog')
     dialog.className = 'import-confirmation'
     dialog.setAttribute('aria-labelledby', 'import-confirm-title')
-    dialog.innerHTML = `<h2 id="import-confirm-title">Confirm weekly room access</h2><p>Save these ${rows.length} verified bookings? Authorized users will see the listed rooms during these weekly time slots in Philippine time.</p><p>Existing bookings stay in place. Exact duplicates are skipped. AC ON/OFF timers are unchanged. Only the Schedule sheet’s six template columns are used.</p><div class="table-wrap" tabindex="0" role="region" aria-label="Bookings to implement"><table class="device-table"><thead><tr><th>User</th><th>Room / Controller</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${rows.map(row => `<tr><td>${esc(row.email)}</td><td>${esc(row.room)} · ${esc(deviceName(mappings[row.room]))}</td><td>${esc(DAYS[row.day - 1])}</td><td>${esc(row.start)}–${esc(row.end)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table></div><p class="muted">The server checks email confirmation, room mappings and conflicts again before saving. Any failed check cancels the entire import.</p><div class="button-row"><button class="secondary" id="cancel-import" type="button" autofocus>Go back</button><button class="primary" id="confirm-import" type="button">Confirm and save</button></div>`
+    dialog.innerHTML = `<h2 id="import-confirm-title">Confirm weekly room access</h2><p>Save these ${rows.length} verified bookings? These weekly slots grant room access and automatically turn the AC on at the start and off at the end, in Philippine time, after the ESP32 syncs with the updated firmware.</p><p>Existing bookings stay in place. Exact duplicates are skipped. AC ON/OFF timers are unchanged. Only the Schedule sheet’s six template columns are used.</p><div class="table-wrap" tabindex="0" role="region" aria-label="Bookings to implement"><table class="device-table"><thead><tr><th>User</th><th>Room / Controller</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${rows.map(row => `<tr><td>${esc(row.email)}</td><td>${esc(row.room)} · ${esc(deviceName(mappings[row.room]))}</td><td>${esc(DAYS[row.day - 1])}</td><td>${esc(row.start)}–${esc(row.end)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table></div><p class="muted">The server checks email confirmation, room mappings and conflicts again before saving. Any failed check cancels the entire import.</p><div class="button-row"><button class="secondary" id="cancel-import" type="button" autofocus>Go back</button><button class="primary" id="confirm-import" type="button">Confirm and save</button></div>`
     const finish = confirmed => { dialog.close(); dialog.remove(); document.getElementById('save-import')?.focus(); resolve(confirmed) }
     dialog.querySelector('#cancel-import').onclick = () => finish(false)
     dialog.querySelector('#confirm-import').onclick = () => finish(true)
@@ -166,7 +175,58 @@ function confirmScheduleImport(rows, mappings) {
   })
 }
 
+function selectSchedulesToRemove(bookings) {
+  return new Promise(resolve => {
+    const dialog = document.createElement('dialog')
+    dialog.className = 'import-confirmation'
+    dialog.setAttribute('aria-labelledby', 'remove-schedule-title')
+    dialog.innerHTML = `<h2 id="remove-schedule-title">Remove schedule</h2><p>Select the weekly bookings to delete. Their room access will end. Daily AC timers stay in place.</p><label class="remove-schedule-select-all"><input id="select-all-removal" class="remove-schedule-checkbox" type="checkbox">Select all</label><div class="table-wrap" tabindex="0" role="region" aria-label="Schedules to remove"><table class="device-table"><thead><tr><th aria-label="Select schedule"></th><th>Room</th><th>User</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${bookings.map((booking, index) => `<tr><td><input class="remove-schedule-checkbox" type="checkbox" value="${index}" aria-label="Select room ${esc(booking.room_number)}, ${esc(DAYS[booking.weekday - 1])}, ${esc(booking.start_time.slice(0, 5))}–${esc(booking.end_time.slice(0, 5))}, ${esc(booking.user_email)}"></td><td>${esc(booking.room_number)}</td><td>${esc(displayName(profileNames.find(profile => profile.user_id === booking.user_id)) || booking.user_email)}</td><td>${esc(DAYS[booking.weekday - 1])}</td><td>${esc(booking.start_time.slice(0, 5))}–${esc(booking.end_time.slice(0, 5))}</td><td>${esc(booking.notes)}</td></tr>`).join('')}</tbody></table></div><div class="button-row"><button class="secondary" id="cancel-schedule-removal" type="button" autofocus>Cancel</button><button class="danger" id="confirm-schedule-removal" type="button" disabled>Remove selected (0)</button></div>`
+    const selected = () => [...dialog.querySelectorAll('tbody .remove-schedule-checkbox:checked')].map(input => bookings[Number(input.value)])
+    const confirm = dialog.querySelector('#confirm-schedule-removal')
+    const selectAll = dialog.querySelector('#select-all-removal')
+    dialog.addEventListener('change', event => {
+      if (event.target === selectAll) dialog.querySelectorAll('tbody .remove-schedule-checkbox').forEach(input => { input.checked = selectAll.checked })
+      const count = selected().length
+      selectAll.checked = count === bookings.length
+      selectAll.indeterminate = count > 0 && count < bookings.length
+      confirm.disabled = !count
+      confirm.textContent = `Remove selected (${count})`
+    })
+    const finish = rows => { dialog.close(); dialog.remove(); document.getElementById('remove-schedule')?.focus(); resolve(rows) }
+    dialog.querySelector('#cancel-schedule-removal').onclick = () => finish([])
+    confirm.onclick = () => { const rows = selected(); if (rows.length) finish(rows) }
+    dialog.oncancel = event => { event.preventDefault(); finish([]) }
+    document.body.append(dialog)
+    dialog.showModal()
+  })
+}
+
 function attachScheduleImport() {
+  document.getElementById('remove-schedule').onclick = async () => {
+    if (importBusy || weeklyLoadError || !weeklyBookings.length) return
+    hasUnsavedEdits = true
+    const bookings = await selectSchedulesToRemove([...weeklyBookings])
+    if (!bookings.length) { hasUnsavedEdits = Boolean(scheduleImport); return }
+    importBusy = true
+    document.querySelectorAll('#schedule-file, #save-import, #clear-import, #remove-schedule, .remove-booking').forEach(element => element.disabled = true)
+    let removed = 0
+    let failure = ''
+    try {
+      for (const booking of bookings) {
+        const { error } = await api.rpc('admin_remove_weekly_booking', { booking_id: booking.id })
+        if (error) throw error
+        removed++
+        setMessage('import-status', `Removing schedules: ${removed} / ${bookings.length}…`)
+      }
+    } catch (error) { failure = error.message || 'Could not finish removing schedules.' }
+    finally {
+      importBusy = false
+      importMessage = failure ? `${removed} of ${bookings.length} schedules removed. ${failure}` : `${removed} weekly schedules removed.`
+      await refresh(true)
+      if (failure) setMessage('import-status', importMessage, true)
+    }
+  }
+
   document.getElementById('schedule-file').onchange = async event => {
     const file = event.target.files[0]
     if (!file) return
@@ -177,21 +237,18 @@ function attachScheduleImport() {
       scheduleImport = await readScheduleFile(file, accessUsers)
       roomMappings = {}
       for (const room of new Set(scheduleImport.rows.map(row => row.room))) {
-        const saved = weeklyBookings.find(booking => booking.room_number === room)
-        const named = devices.filter(device => new RegExp(`^room\\s+${room}$`, 'i').test(device.name.trim()))
-        roomMappings[room] = saved?.device_id || (named.length === 1 ? named[0].id : '')
+        roomMappings[room] = roomDeviceId(room)
       }
       importMessage = `${file.name}: ${scheduleImport.rows.length} verified booking rows extracted. Review before saving.`
     } catch (error) { importMessage = error.message || 'The Excel file could not be read.' }
     finally { importBusy = false; render(); hasUnsavedEdits = true }
   }
-  document.querySelectorAll('.room-mapping').forEach(select => select.onchange = () => { roomMappings[select.dataset.room] = select.value; hasUnsavedEdits = true })
   const clear = document.getElementById('clear-import')
   if (clear) clear.onclick = () => { scheduleImport = null; roomMappings = {}; importMessage = ''; render() }
   const save = document.getElementById('save-import')
   if (save) save.onclick = async () => {
     const rooms = [...new Set(scheduleImport.rows.map(row => row.room))]
-    if (rooms.some(room => !roomMappings[room])) return setMessage('import-status', 'Choose a controller for every room.', true)
+    if (rooms.some(room => !roomMappings[room])) return setMessage('import-status', 'Each room needs its matching ESP32: Room 301 → ESP32 01, Room 302 → ESP32 02, and so on. Check unsupported room numbers.', true)
     if (new Set(rooms.map(room => roomMappings[room])).size !== rooms.length) return setMessage('import-status', 'Each room must use a different controller.', true)
     for (const row of scheduleImport.rows) {
       const conflict = weeklyBookings.find(booking => {
@@ -203,10 +260,10 @@ function attachScheduleImport() {
     }
     if (!(await confirmScheduleImport(scheduleImport.rows, roomMappings))) return
     importBusy = true
-    document.querySelectorAll('#schedule-file, #save-import, #clear-import, .room-mapping, .remove-booking').forEach(element => element.disabled = true)
+    document.querySelectorAll('#schedule-file, #save-import, #clear-import, #remove-schedule, .remove-booking').forEach(element => element.disabled = true)
     const { data, error } = await api.rpc('admin_import_weekly_bookings', { bookings: scheduleImport.rows.map(row => ({ email: row.email, room_number: row.room, device_id: roomMappings[row.room], weekday: row.day, start_time: row.start, end_time: row.end, notes: row.notes })) })
     importBusy = false
-    if (error) { document.querySelectorAll('#schedule-file, #save-import, #clear-import, .room-mapping, .remove-booking').forEach(element => element.disabled = false); return setMessage('import-status', error.message, true) }
+    if (error) { document.querySelectorAll('#schedule-file, #save-import, #clear-import, #remove-schedule, .remove-booking').forEach(element => element.disabled = false); return setMessage('import-status', error.message, true) }
     importMessage = `${data.added} bookings saved; ${data.skipped} duplicates skipped.`
     scheduleImport = null
     roomMappings = {}
@@ -233,7 +290,7 @@ function renderHistory() {
 
 function renderAlerts() {
   const attention = devices.filter(d => d.provisioned && deviceStatus(d) === 'offline')
-  const deviceRows = attention.map(d => `<div class="alert-detail"><span class="alert-mark">!</span><div><strong>${esc(d.name)} · ${badge(d)}</strong><small>${d.provisioned ? `Last heartbeat: ${esc(seen(d))}` : 'Controller has not been provisioned yet.'}</small></div>${isAdmin() ? `<a class="subtle-link" href="#device/${encodeURIComponent(d.id)}">Open →</a>` : ''}</div>`).join('')
+  const deviceRows = attention.map(d => `<div class="alert-detail"><span class="alert-mark">!</span><div><strong>${esc(d.name)} · ${badge(d)}</strong><small>${d.provisioned ? `Last active: ${esc(seen(d))}` : 'Controller has not been provisioned yet.'}</small></div>${isAdmin() ? `<a class="subtle-link" href="#device/${encodeURIComponent(d.id)}">Open →</a>` : ''}</div>`).join('')
   const commandRows = commandHistory.map(c => `<article class="alert-detail"><span class="alert-mark" aria-hidden="true">${c.status === 'failed' ? '!' : 'i'}</span><div><strong>${esc(deviceName(c.device_id))} · ${esc(c.action.toUpperCase())} · ${commandStatus(c)}</strong>${c.error_message ? `<small>${esc(c.error_message)}</small>` : ''}<small>${esc(formatDate(c.acknowledged_at || c.requested_at))}</small></div>${isAdmin() ? `<a class="subtle-link" href="#device/${encodeURIComponent(c.device_id)}">View device →</a>` : ''}</article>`).join('')
   return `<div class="page">${pageHead('System notices', 'Notifications', '')}
     ${classResponseMessage ? banner('Schedule response saved', esc(classResponseMessage)) : ''}
@@ -247,7 +304,8 @@ function renderSettings() {
     <section class="card settings-card animations-card"><div class="card-heading"><div><h2 id="animations-title">Animations</h2></div><label class="animation-setting" for="animations-toggle"><input id="animations-toggle" type="checkbox" role="switch" aria-labelledby="animations-title" ${document.documentElement.dataset.animations !== 'off' ? 'checked' : ''}></label></div></section>
     <section class="card settings-card"><h2>Profile</h2><form id="profile-form"><label class="settings-field" for="profile-first-name">First name</label><input id="profile-first-name" autocomplete="given-name" maxlength="80" value="${esc(ownProfile?.first_name || '')}" required><label class="settings-field" for="profile-last-name">Last name</label><input id="profile-last-name" autocomplete="family-name" maxlength="80" value="${esc(ownProfile?.last_name || '')}" required><label class="settings-field" for="profile-username">Generated username</label><div class="invite-controls"><input id="profile-username" type="text" autocomplete="username" value="${esc(profileUsername)}" placeholder="Generated when you save your name" readonly><button class="primary" type="submit">Save profile</button></div><p id="profile-status" class="status-text" role="status" aria-live="polite"></p></form></section>
     <section class="card settings-card"><div class="card-heading"><div><h2>Temperature unit</h2></div></div><label class="settings-field" for="temperature-unit">Temperature</label><select id="temperature-unit" class="settings-select"><option value="celsius" ${unit === 'celsius' ? 'selected' : ''}>Celsius (°C)</option><option value="fahrenheit" ${unit === 'fahrenheit' ? 'selected' : ''}>Fahrenheit (°F)</option></select></section>
-    <section class="card settings-card"><div class="card-heading"><div><h2>Connection and schedule</h2></div></div><dl class="settings-list"><div><dt>Account</dt><dd>${esc(session?.user?.email || 'Signed in')}</dd></div><div><dt>Schedule time zone</dt><dd>Asia/Manila (UTC+8)</dd></div><div><dt>Online threshold</dt><dd>Heartbeat within 30 seconds</dd></div><div><dt>Dashboard refresh</dt><dd>Every 8 seconds</dd></div></dl></section>${renderAccountDeletion()}</div>`
+    <section class="card settings-card"><div class="card-heading"><div><h2>Connection and schedule</h2></div></div><dl class="settings-list"><div><dt>Account</dt><dd>${esc(session?.user?.email || 'Signed in')}</dd></div><div><dt>Schedule time zone</dt><dd>Asia/Manila (UTC+8)</dd></div><div><dt>Online threshold</dt><dd>Heartbeat within 30 seconds</dd></div><div><dt>Dashboard refresh</dt><dd>Every 8 seconds</dd></div></dl></section>
+    ${renderAccountDeletion()}</div>`
 }
 
 function attachProfile() {
@@ -369,16 +427,26 @@ function scheduleRows() {
   return schedules.map(s => `<div class="schedule-row" data-schedule="${s.id}"><div class="field"><label for="schedule-on-${s.id}">ON · 24-hour</label><input type="time" id="schedule-on-${s.id}" class="on-time" value="${esc(s.on_time.slice(0, 5))}"></div><div class="field"><label for="schedule-off-${s.id}">OFF · 24-hour</label><input type="time" id="schedule-off-${s.id}" class="off-time" value="${esc(s.off_time.slice(0, 5))}"></div><button class="secondary save-schedule" type="button">Save</button><button class="danger remove-schedule" type="button">Remove</button></div>`).join('')
 }
 
+function todayBookings(id) {
+  if (weeklyLoadError) return '<p class="error-text">Could not load today’s schedule.</p>'
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', weekday: 'long', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map(part => [part.type, part.value]))
+  const weekday = DAYS.indexOf(parts.weekday) + 1
+  const time = `${parts.hour}:${parts.minute}:${parts.second}`
+  const bookings = weeklyBookings.filter(booking => booking.device_id === id && booking.weekday === weekday && booking.end_time.slice(0, 8) > time)
+  const rows = bookings.map(booking => `<tr><td>${esc(booking.start_time.slice(0, 5))}</td><td>${esc(booking.end_time.slice(0, 5))}</td><td>Automatic</td><td><span class="badge ${booking.start_time.slice(0, 8) <= time ? 'online' : 'offline'}">${booking.start_time.slice(0, 8) <= time ? 'Ongoing' : 'Upcoming'}</span></td></tr>`).join('')
+  return rows ? `<div class="table-wrap" tabindex="0" role="region" aria-label="Today’s automatic AC timers"><table class="device-table"><thead><tr><th>ON</th><th>OFF</th><th>Source</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">No remaining automatic timers today.</p>'
+}
+
 function renderDetail(id) {
   const d = devices.find(item => item.id === id)
   if (!d) return `<div class="page">${pageHead('Device', 'Device unavailable.', 'This device is not assigned to your verified account.')}<a class="back" href="#devices">← Back to devices</a></div>`
   const online = deviceStatus(d) === 'online'
   const commandExpired = latestCommand?.status === 'queued' && latestCommand.expires_at && Date.parse(latestCommand.expires_at) <= Date.now()
   const commandText = latestCommand ? `Last request: ${latestCommand.action.toUpperCase()} · ${latestCommand.status === 'sent_ir' ? 'IR sent by ESP32' : commandExpired ? 'Expired before delivery' : latestCommand.status === 'queued' ? 'Waiting for ESP32' : latestCommand.error_message || 'Send failed'}` : 'No website commands recorded.'
-  return `<div class="page"><a class="back" href="#devices">← All devices</a>${pageHead('Device ' + esc(id), esc(d.name), esc(d.model || 'Controller slot'))}
-    <div class="detail-grid"><section class="card panel"><div class="panel-top"><h2>Live device status</h2>${badge(d)}</div><div class="reading-grid"><div class="reading"><label>Temperature</label><b>${online ? temperature(d.temperature_c) : '—'}</b></div><div class="reading"><label>Humidity</label><b>${online ? reading(d.humidity_pct, ' %') : '—'}</b></div><div class="reading"><label>AC state</label><b>Unknown</b></div></div><p class="muted">Last heartbeat: ${esc(seen(d))}. ${d.last_ir_at ? `Last reported IR: ${esc(d.last_ir_action?.toUpperCase())} at ${esc(new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(d.last_ir_at)))}` : 'No IR transmission report yet.'}</p>
-      <div class="rule"></div><div class="panel-top"><h2>Manual control</h2></div><div class="button-row"><button class="primary manual" data-action="on" ${online ? '' : 'disabled'}>Turn on</button><button class="secondary manual" data-action="off" ${online ? '' : 'disabled'}>Turn off</button></div><p class="status-text" id="command-status">${esc(commandText)}</p></section>
-      <section class="card panel"><div class="panel-top"><h2>Daily schedule</h2><span class="tag">Asia/Manila</span></div><div id="schedule-rows">${scheduleRows() || '<p class="muted">No windows set.</p>'}</div><div class="rule"></div><div class="schedule-row"><div class="field"><label for="new-on">New ON time</label><input type="time" id="new-on" value="07:00"></div><div class="field"><label for="new-off">New OFF time</label><input type="time" id="new-off" value="09:00"></div><button class="primary" id="add-schedule" type="button" ${d.provisioned ? '' : 'disabled'}>Add window</button></div><p class="status-text" id="schedule-status"></p></section></div></div>`
+  return `<div class="page"><a class="back" href="#devices">← All devices</a>${pageHead('Device ' + esc(id), esc(d.name), '')}
+    <div class="detail-grid"><section class="card panel" id="live-device-status"><div class="panel-top"><h2>Live device status</h2>${badge(d)}</div><div class="reading-grid"><div class="reading"><label>Temperature</label><b>${hasReading(d) ? temperature(d.temperature_c) : '—'}</b></div><div class="reading"><label>Humidity</label><b>${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</b></div><div class="reading"><label>AC state (estimated)</label><b>${estimatedAcState(d)}</b></div></div><p class="muted">Last active: ${esc(seen(d))}. ${d.last_ir_at ? `Last reported IR: ${esc(d.last_ir_action?.toUpperCase())} at ${esc(new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(d.last_ir_at)))}` : 'No IR transmission report yet.'}</p>
+      ${wakeText(d)}${powerText(d)}<div class="rule"></div><div class="panel-top"><h2>Manual control</h2></div><div class="button-row"><button class="primary manual" data-action="on" ${online ? '' : 'disabled'}>Turn on</button><button class="secondary manual" data-action="off" ${online ? '' : 'disabled'}>Turn off</button></div>${deviceStatus(d) === 'sleeping' ? '<p class="muted">This controller is still using sleep mode. Upload the updated USB firmware to receive schedule changes automatically.</p>' : ''}<p class="status-text" id="command-status">${esc(commandText)}</p></section>
+      <section class="card panel"><div class="panel-top"><h2>Daily AC timers</h2><span class="tag">Asia/Manila</span></div><div id="today-bookings">${todayBookings(id)}</div><div class="rule"></div><h3>Manual timers</h3><div id="schedule-rows">${scheduleRows() || '<p class="muted">No manual timers set.</p>'}</div><div class="rule"></div><div class="schedule-row"><div class="field"><label for="new-on">New ON time</label><input type="time" id="new-on" value="07:00"></div><div class="field"><label for="new-off">New OFF time</label><input type="time" id="new-off" value="09:00"></div><button class="primary" id="add-schedule" type="button" ${d.provisioned ? '' : 'disabled'}>Add window</button></div><p class="status-text" id="schedule-status"></p></section></div></div>`
 }
 
 function attachTableLinks() { document.querySelectorAll('tr[data-device]').forEach(row => { const open = () => location.hash = `device/${row.dataset.device}`; row.onclick = open; row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } } }) }
@@ -401,7 +469,7 @@ function attachDetail(id) {
     setMessage('command-status', 'Queuing command…')
     const { error } = await api.from('device_commands').insert({ device_id: id, requested_by: session.user.id, action: button.dataset.action })
     if (error) { button.disabled = false; return setMessage('command-status', error.message, true) }
-    await refresh(true)
+    await refresh()
     setMessage('command-status', 'Command queued. Waiting for ESP32 acknowledgement.')
   })
   document.getElementById('add-schedule').onclick = () => saveSchedule(null, document.getElementById('new-on').value, document.getElementById('new-off').value, id)
@@ -526,7 +594,6 @@ function attachClassConfirmation() {
 
 async function refresh(force = false) {
   if (!session) return
-  if (!force && hasUnsavedEdits) return
   loadingError = ''
   try {
   const accessRequestStarted = performance.now()
@@ -583,7 +650,7 @@ async function refresh(force = false) {
     const names = await api.from('user_profiles').select('user_id,first_name,last_name')
     profileNames = names.data || []
   }
-  if (!error && (accessContext.role === 'authorized' || (['scheduling', 'user-access'].includes(current) && isAdmin()))) {
+  if (!error && (accessContext.role === 'authorized' || ((['scheduling', 'user-access'].includes(current) || current.startsWith('device/')) && isAdmin()))) {
     const result = await api.from('weekly_room_assignments').select('id,user_id,user_email,room_number,device_id,weekday,start_time,end_time,notes').order('weekday').order('start_time')
     weeklyLoadError = result.error ? 'Weekly bookings are unavailable. The database update must be installed before saving imports.' : ''
     weeklyBookings = result.error ? [] : result.data || []
@@ -597,7 +664,16 @@ async function refresh(force = false) {
     if (scheduleResult.error || commandResult.error) loadingError = scheduleResult.error?.message || commandResult.error?.message
     else { schedules = scheduleResult.data || []; latestCommand = commandResult.data?.[0] || null }
   }
-  if (force || (!hasUnsavedEdits && (!screen.contains(document.activeElement) || document.activeElement?.tagName !== 'INPUT'))) render()
+  const editing = hasUnsavedEdits || (screen.contains(document.activeElement) && ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName))
+  if (force || loadingError || !editing) render()
+  else if (id) {
+    const template = document.createElement('template')
+    template.innerHTML = renderDetail(id)
+    const updated = template.content.querySelector('#live-device-status')
+    const panel = document.getElementById('live-device-status')
+    if (!panel || !updated) render()
+    else { panel.replaceWith(updated); attachDetail(id) }
+  }
   } catch (error) {
     loadingError = error?.message || 'The connection failed. Please try again.'
     render()
@@ -612,3 +688,11 @@ session = initial.data.session
 if (session) await refresh(true)
 else render()
 setInterval(() => refresh(), 8000)
+
+setInterval(() => {
+  const panel = document.getElementById('today-bookings')
+  if (panel) {
+    const content = todayBookings(selectedId())
+    if (panel.innerHTML !== content) panel.innerHTML = content
+  }
+}, 1000)

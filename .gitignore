@@ -32,6 +32,11 @@ wifi_credentials.h
 service-account*.json
 
 # Local device provisioning
+device_credentials.h
+devices/device-token-registration.local.sql
 firmware/stage1_hardware_test/device_credentials.h
 supabase/*.local
 .vercel/
+
+.vercel
+.env*

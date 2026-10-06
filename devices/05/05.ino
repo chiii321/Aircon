@@ -1,15 +1,13 @@
 /*
   Stage 1 hardware test for ESP32-WROOM-32.
-  ELECTRA_AC raw control and replay diagnostics. Physical response unverified.
+  PANASONIC_AC raw transmit-only control. Physical response unverified.
   Current transmitter: harvested IR LED from the previous 3-pin module.
 */
 
 #include <Arduino.h>
 #include <DHT.h>
 #include <IRremoteESP8266.h>
-#include <IRrecv.h>
 #include <IRsend.h>
-#include <IRutils.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <Preferences.h>
@@ -23,10 +21,9 @@
 
 #define DHT_PIN 32
 #define DHT_TYPE DHT22
-#define IR_RECEIVE_PIN 27
-#define IR_SEND_PIN 25
+#define IR_SEND_PIN 25  // Shared transistor driver: two IR LED/resistor branches.
 // Change this and provision a separate token before flashing another controller.
-constexpr char kDeviceId[] = "01";
+constexpr char kDeviceId[] = "05";
 constexpr char kSyncUrl[] = "https://jvdudsbtcjojbgtanbzo.supabase.co/functions/v1/device-sync";
 constexpr char kPublishableKey[] = "sb_publishable_B4ZZZ62G7PF8sNcKGxWA0A_MKmvhTcF";
 constexpr uint32_t kPollIntervalMs = 5000;
@@ -42,19 +39,10 @@ RTC_DATA_ATTR time_t pendingBoundary = 0;
 #define IR_SEND_INVERTED false  // Set true only for a confirmed active-LOW driver.
 #endif
 constexpr uint16_t kRawReplayKhz = 38;  // Receiver cannot measure carrier frequency.
-const char kCommands[] = "status, dht, on, off, testir, capture, replay";
-bool capturePending = false;
-uint32_t captureStartedMs = 0;
-uint16_t* capturedRaw = nullptr;
-uint16_t capturedRawLength = 0;
-
-constexpr uint16_t kCaptureBufferSize = 1024;
-constexpr uint8_t kCaptureTimeoutMs = 50;
+const char kCommands[] = "status, dht, on, off, testir";
 
 DHT dht(DHT_PIN, DHT_TYPE);
-IRrecv irReceiver(IR_RECEIVE_PIN, kCaptureBufferSize, kCaptureTimeoutMs, true);
 IRsend irSender(IR_SEND_PIN, IR_SEND_INVERTED);
-decode_results irResults;
 unsigned long lastDhtReadMs = 0;
 constexpr unsigned long kDhtIntervalMs = 2000;
 
@@ -103,64 +91,61 @@ void updateIdlePowerSaving() {
 
 
 
-// Latest ELECTRA_AC ON/OFF captures supplied by the user (104-bit frames, 211 timings each).
-// Raw replay is used so the captured timing pattern is preserved exactly.
-const uint16_t kElectraOnRaw[] = {
-    9098, 4410, 644, 1604, 644, 1602, 646, 464, 644, 472, 638, 494, 616, 466, 644, 1602,
-    648, 1602, 644, 466, 642, 466, 644, 466, 644, 1604, 644, 468, 642, 468, 642, 468,
-    644, 1602, 646, 466, 642, 466, 644, 466, 644, 466, 644, 466, 644, 1604, 644, 1604,
-    644, 1602, 646, 466, 644, 468, 642, 466, 644, 466, 644, 464, 644, 466, 644, 466,
-    642, 468, 644, 466, 642, 466, 644, 468, 642, 466, 644, 468, 642, 468, 642, 1604,
-    644, 468, 640, 468, 644, 466, 642, 466, 642, 466, 642, 468, 644, 468, 642, 468,
-    642, 468, 642, 466, 644, 468, 642, 468, 642, 468, 644, 466, 642, 1604, 644, 466,
-    642, 466, 644, 466, 642, 468, 642, 466, 644, 468, 642, 466, 642, 468, 642, 468,
-    642, 466, 642, 468, 642, 468, 640, 468, 644, 466, 642, 468, 642, 470, 640, 468,
-    642, 468, 642, 468, 642, 468, 642, 468, 642, 468, 644, 466, 642, 1604, 642, 468,
-    642, 468, 642, 468, 640, 470, 642, 468, 640, 470, 640, 470, 640, 470, 640, 470,
-    640, 470, 640, 1606, 640, 470, 640, 1606, 642, 468, 640, 470, 616, 494, 640, 470,
-    616, 494, 616, 496, 616, 494, 616, 494, 614, 494, 616, 1632, 616, 1632, 616, 492,
-    616, 1632, 618
+// Latest PANASONIC_AC ON/OFF captures supplied by the user (128-bit frames, 263 timings each).
+// The captured states are identical; replay preserves each supplied raw timing frame.
+const uint16_t kPanasonicOnRaw[263] = {
+    3552, 1638, 526, 340, 528, 1198, 528, 368, 500, 338, 528, 340, 528, 368, 500, 366,
+    500, 368, 498, 346, 522, 342, 526, 342, 524, 342, 524, 342, 524, 1198, 526, 342,
+    526, 340, 526, 342, 526, 340, 526, 342, 526, 342, 524, 340, 526, 1198, 524, 1200,
+    526, 1200, 524, 344, 524, 368, 498, 1196, 524, 344, 526, 342, 526, 368, 498, 368,
+    498, 342, 526, 368, 500, 340, 526, 344, 522, 342, 524, 368, 498, 370, 498, 368,
+    498, 370, 498, 344, 522, 370, 496, 346, 522, 342, 524, 342, 524, 344, 522, 368,
+    498, 344, 522, 344, 524, 370, 496, 342, 524, 344, 522, 370, 498, 368, 498, 342,
+    524, 344, 524, 344, 522, 1200, 516, 1210, 522, 346, 524, 342, 524, 344, 522, 370,
+    498, 370, 498, 10210, 3522, 1674, 520, 350, 524, 1200, 520, 348, 524, 342, 524, 344,
+    522, 344, 524, 342, 524, 344, 524, 342, 526, 342, 524, 342, 526, 342, 524, 342,
+    524, 1200, 522, 346, 524, 342, 524, 340, 526, 344, 524, 342, 526, 342, 524, 340,
+    526, 1198, 522, 1202, 524, 1202, 524, 374, 498, 342, 524, 1200, 524, 348, 522, 342,
+    524, 370, 498, 342, 524, 342, 524, 340, 526, 344, 522, 344, 524, 340, 526, 340,
+    526, 342, 524, 342, 526, 1200, 522, 1204, 522, 346, 524, 342, 526, 340, 526, 342,
+    526, 1198, 524, 344, 524, 1200, 524, 1200, 524, 1202, 520, 350, 524, 340, 526, 1200,
+    520, 1204, 520, 348, 524, 344, 522, 342, 524, 1200, 524, 344, 524, 1200, 518, 1206,
+    522, 346, 524, 1200, 518, 350, 524
 };
 
-const uint16_t kElectraOffRaw[] = {
-    9096, 4412, 642, 1604, 642, 1606, 644, 468, 642, 468, 640, 468, 642, 470, 640, 1606,
-    642, 1604, 644, 468, 640, 470, 638, 470, 640, 1608, 640, 468, 642, 468, 640, 470,
-    638, 1608, 642, 470, 638, 468, 642, 470, 638, 470, 640, 468, 640, 1608, 640, 1606,
-    642, 1606, 640, 470, 640, 470, 638, 472, 640, 470, 638, 470, 640, 470, 640, 470,
-    638, 470, 640, 468, 640, 470, 638, 470, 640, 470, 638, 470, 642, 468, 640, 1608,
-    638, 472, 640, 470, 640, 468, 640, 470, 642, 468, 640, 470, 640, 468, 640, 468,
-    640, 470, 640, 470, 640, 468, 640, 470, 640, 470, 638, 470, 640, 1606, 640, 470,
-    640, 470, 640, 468, 642, 468, 642, 468, 640, 470, 640, 470, 640, 470, 640, 468,
-    640, 470, 642, 468, 640, 468, 640, 470, 640, 470, 640, 470, 640, 470, 640, 470,
-    640, 470, 640, 468, 640, 470, 640, 470, 640, 468, 642, 468, 640, 468, 642, 470,
-    640, 470, 640, 468, 640, 472, 640, 470, 638, 470, 640, 468, 640, 470, 640, 468,
-    640, 470, 640, 1608, 640, 470, 638, 1608, 638, 472, 638, 470, 640, 470, 640, 470,
-    640, 470, 638, 470, 640, 470, 638, 472, 614, 496, 640, 1606, 614, 496, 638, 472,
-    638, 1608, 638
+const uint16_t kPanasonicOffRaw[263] = {
+    3556, 1638, 528, 338, 530, 1196, 528, 342, 526, 338, 528, 338, 528, 336, 528, 340,
+    530, 338, 528, 336, 530, 340, 528, 336, 530, 338, 528, 338, 528, 1196, 528, 340,
+    528, 338, 530, 338, 528, 338, 528, 340, 528, 340, 528, 340, 528, 1196, 528, 1198,
+    528, 1196, 532, 334, 530, 338, 528, 1196, 528, 338, 528, 338, 530, 338, 530, 338,
+    530, 336, 530, 338, 528, 338, 530, 336, 528, 338, 530, 336, 528, 340, 530, 336,
+    530, 336, 528, 338, 530, 336, 530, 340, 530, 336, 530, 336, 530, 338, 530, 338,
+    530, 334, 528, 338, 530, 336, 528, 338, 528, 338, 530, 336, 530, 334, 532, 334,
+    528, 338, 530, 336, 530, 1194, 530, 1192, 530, 338, 530, 336, 530, 336, 528, 336,
+    528, 338, 530, 10202, 3554, 1634, 528, 338, 530, 1194, 528, 338, 528, 338, 528, 338,
+    528, 338, 526, 338, 528, 338, 528, 338, 528, 338, 528, 340, 526, 338, 526, 338,
+    528, 1196, 526, 340, 526, 342, 526, 340, 526, 340, 524, 342, 524, 340, 526, 340,
+    526, 1196, 524, 1200, 524, 1198, 524, 344, 524, 342, 524, 1198, 524, 342, 524, 342,
+    524, 342, 524, 342, 524, 342, 522, 342, 524, 344, 522, 344, 522, 344, 522, 344,
+    522, 344, 524, 342, 522, 1200, 524, 1200, 518, 348, 522, 344, 522, 344, 522, 344,
+    522, 1200, 524, 344, 522, 1200, 522, 1202, 522, 1200, 524, 344, 520, 346, 520, 1200,
+    522, 1202, 526, 342, 520, 344, 522, 346, 520, 1202, 522, 344, 520, 1202, 522, 1202,
+    520, 346, 520, 1204, 520, 346, 520
 };
 
-const uint8_t kElectraOnState[13] = {
-    0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20, 0x00, 0x00, 0x20, 0x00, 0x05, 0xB0
+const uint8_t kPanasonicState[16] = {
+    0x02, 0x20, 0xE0, 0x04, 0x00, 0x00, 0x00, 0x06,
+    0x02, 0x20, 0xE0, 0x04, 0x80, 0xA1, 0x33, 0x5A
 };
 
-const uint8_t kElectraOffState[13] = {
-    0xC3, 0x88, 0xE0, 0x00, 0x40, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x05, 0x90
-};
-
-static_assert(sizeof(kElectraOnRaw) / sizeof(kElectraOnRaw[0]) == 211,
-              "ELECTRA ON capture must contain all 211 recorded timings.");
-static_assert(sizeof(kElectraOffRaw) / sizeof(kElectraOffRaw[0]) == 211,
-              "ELECTRA OFF capture must contain all 211 recorded timings.");
-static_assert(sizeof(kElectraOnState) / sizeof(kElectraOnState[0]) == 13,
-              "ELECTRA ON state must contain 13 bytes.");
-static_assert(sizeof(kElectraOffState) / sizeof(kElectraOffState[0]) == 13,
-              "ELECTRA OFF state must contain 13 bytes.");
+static_assert(sizeof(kPanasonicOnRaw) / sizeof(kPanasonicOnRaw[0]) == 263,
+              "PANASONIC ON capture must contain all 263 recorded timings.");
+static_assert(sizeof(kPanasonicOffRaw) / sizeof(kPanasonicOffRaw[0]) == 263,
+              "PANASONIC OFF capture must contain all 263 recorded timings.");
+static_assert(sizeof(kPanasonicState) / sizeof(kPanasonicState[0]) == 16,
+              "PANASONIC state must contain 16 bytes.");
 
 void printDht() {
-  if (capturePending) {
-    Serial.println("DHT paused during capture to avoid interrupting IR timings.");
-    return;
-  }
   const float humidity = dht.readHumidity();
   const float temperatureC = dht.readTemperature();
 
@@ -178,63 +163,28 @@ void printDht() {
 
 bool sendAuxState(bool turnOn) {
   noteActivity();
-  if (capturePending) {
-    Serial.println("Capture is armed; wait for the remote or the 60-second timeout before sending.");
-    return false;
-  }
-  irReceiver.disableIRIn();
   if (turnOn) {
-    irSender.sendRaw(kElectraOnRaw, sizeof(kElectraOnRaw) / sizeof(kElectraOnRaw[0]), kRawReplayKhz);
+    irSender.sendRaw(kPanasonicOnRaw, sizeof(kPanasonicOnRaw) / sizeof(kPanasonicOnRaw[0]), kRawReplayKhz);
   } else {
-    irSender.sendRaw(kElectraOffRaw, sizeof(kElectraOffRaw) / sizeof(kElectraOffRaw[0]), kRawReplayKhz);
+    irSender.sendRaw(kPanasonicOffRaw, sizeof(kPanasonicOffRaw) / sizeof(kPanasonicOffRaw[0]), kRawReplayKhz);
   }
   delay(100);
-  irReceiver.enableIRIn();
   if (turnOn) {
-    Serial.printf("Sent captured ELECTRA_AC ON raw frame (%u timings at %u kHz). AC response is not yet verified.\n",
-                  static_cast<unsigned int>(sizeof(kElectraOnRaw) / sizeof(kElectraOnRaw[0])), kRawReplayKhz);
+    Serial.printf("Sent captured PANASONIC_AC ON raw frame (%u timings at %u kHz). AC response is not yet verified.\n",
+                  static_cast<unsigned int>(sizeof(kPanasonicOnRaw) / sizeof(kPanasonicOnRaw[0])), kRawReplayKhz);
   } else {
-    Serial.printf("Sent captured ELECTRA_AC OFF raw frame (%u timings at %u kHz). AC response is not yet verified.\n",
-                  static_cast<unsigned int>(sizeof(kElectraOffRaw) / sizeof(kElectraOffRaw[0])), kRawReplayKhz);
+    Serial.printf("Sent captured PANASONIC_AC OFF raw frame (%u timings at %u kHz). AC response is not yet verified.\n",
+                  static_cast<unsigned int>(sizeof(kPanasonicOffRaw) / sizeof(kPanasonicOffRaw[0])), kRawReplayKhz);
   }
   return true;
 }
 void testIrLed() {
-  if (capturePending) {
-    Serial.println("Capture is armed; wait for the remote or the 60-second timeout before sending.");
-    return;
-  }
   static const uint16_t pulse[] = {5000, 5000};  // 5 ms 38 kHz burst, 5 ms off
-  irReceiver.disableIRIn();
   for (uint8_t i = 0; i < 8; ++i) {
     irSender.sendRaw(pulse, 2, kRawReplayKhz);
     delay(100);
   }
-  irReceiver.enableIRIn();
   Serial.println("IR LED test bursts sent. Camera visibility depends on the camera and LED.");
-}
-
-void captureNext() {
-  delete[] capturedRaw;
-  capturedRaw = nullptr;
-  capturedRawLength = 0;
-  irReceiver.resume();
-  capturePending = true;
-  captureStartedMs = millis();
-  Serial.println("Capture armed for 60 seconds. Press the original remote once. DHT reads paused.");
-}
-
-void replayCaptured() {
-  if (capturePending || capturedRaw == nullptr || capturedRawLength == 0) {
-    Serial.println("No completed raw capture. Use capture, then press the original remote.");
-    return;
-  }
-  irReceiver.disableIRIn();
-  irSender.sendRaw(capturedRaw, capturedRawLength, kRawReplayKhz);
-  delay(100);
-  irReceiver.enableIRIn();
-  Serial.printf("Replayed %u raw timings at %u kHz. Check the actual AC response.\n",
-                capturedRawLength, kRawReplayKhz);
 }
 
 int parseMinute(const String& value) {
@@ -353,7 +303,8 @@ void runDailySchedule() {
       ? pendingBoundary : now;
   if (pendingBoundary && now >= pendingBoundary) pendingBoundary = 0;
   struct tm localTime;
-  localtime_r(&eventTime, &localTime);  const int minute = localTime.tm_hour * 60 + localTime.tm_min;
+  localtime_r(&eventTime, &localTime);
+  const int minute = localTime.tm_hour * 60 + localTime.tm_min;
   if (minute == lastScheduleMinute) return;
   lastScheduleMinute = minute;
   const uint32_t eventKey = uint32_t(localTime.tm_year + 1900) * 1000000UL
@@ -386,7 +337,7 @@ void runDailySchedule() {
 }
 
 void sleepWhenReady() {
-  if (!INUVAIR_DEEP_SLEEP || capturePending || capturedRaw != nullptr) return;
+  if (!INUVAIR_DEEP_SLEEP) return;
   const time_t now = time(nullptr);
   const bool validClock = now >= 1700000000;
   // Bound connection and clock acquisition; cached schedules still work offline.
@@ -424,7 +375,6 @@ void sleepWhenReady() {
     postCloud(payload, response);
   }
   Serial.printf("INUVAIR sleeping for %lu seconds. USB power; solar supply pending.\n", static_cast<unsigned long>(seconds));
-  irReceiver.disableIRIn();
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
   digitalWrite(IR_SEND_PIN, IR_SEND_INVERTED ? HIGH : LOW);
@@ -436,15 +386,14 @@ void sleepWhenReady() {
 void printStatus() {
   Serial.println("Stage 1 website-connected hardware test");
   Serial.printf("Device ID: %s\n", kDeviceId);
-  Serial.printf("DHT22 GPIO: %d | IR receiver GPIO: %d | IR transmitter GPIO: %d\n",
-                DHT_PIN, IR_RECEIVE_PIN, IR_SEND_PIN);
+  Serial.printf("DHT22 GPIO: %d | IR transmitter GPIO: %d (two LEDs, shared driver)\n",
+                DHT_PIN, IR_SEND_PIN);
   Serial.printf("Wi-Fi: %s | cached schedule windows: %u\n",
                 WiFi.status() == WL_CONNECTED ? "connected" : "offline", scheduleCount);
-  Serial.println("ELECTRA_AC ON/OFF: captured raw frames (104-bit, 211 timings each; AC response not yet verified)");
-  Serial.println("ON state:  C388E0004000200000200005B0");
-  Serial.println("OFF state: C388E000400020000000000590");
-  Serial.printf("IR TX inverted: %s | raw replay carrier: %u kHz | captured timings: %u\n",
-                IR_SEND_INVERTED ? "yes" : "no", kRawReplayKhz, capturedRawLength);
+  Serial.println("PANASONIC_AC ON/OFF: captured raw frames (128-bit, 263 timings each; AC response not yet verified)");
+  Serial.println("State: 0220E004000000060220E00480A1335A");
+  Serial.printf("IR TX inverted: %s | raw carrier: %u kHz\n",
+                IR_SEND_INVERTED ? "yes" : "no", kRawReplayKhz);
   Serial.printf("Build: %s %s\n", __DATE__, __TIME__);
   Serial.println("Cloud polling enabled. IR transmission is not proof of physical AC state.");
 }
@@ -460,10 +409,7 @@ void handleCommand(const String& command) {
     sendAuxState(false);
   } else if (command == "testir") {
     testIrLed();
-  } else if (command == "capture") {
-    captureNext();
-  } else if (command == "replay") {
-    replayCaptured();
+
   } else if (command.length() > 0) {
     Serial.printf("Unknown command. Use: %s\n", kCommands);
   }
@@ -472,7 +418,6 @@ void handleCommand(const String& command) {
 void setup() {
   Serial.begin(115200);
   dht.begin();
-  irReceiver.enableIRIn();
   irSender.begin();
   settings.begin("aircon", false);
   scheduleHeld = settings.getBool("scheduleHold", false);
@@ -514,35 +459,9 @@ void checkSerial() {
 }
 
 void loop() {
-  if (capturePending && uint32_t(millis() - captureStartedMs) >= 60000) {
-    capturePending = false;
-    Serial.println("Capture timed out. DHT reads resumed; use capture to try again.");
-  }
-  if (irReceiver.decode(&irResults)) {
-    if (irResults.overflow) {
-      Serial.println("IR capture overflow: incomplete data; do not use for replay.");
-    } else if (capturePending && !irResults.repeat && irResults.rawlen > 1) {
-      capturedRawLength = getCorrectedRawLength(&irResults);
-      capturedRaw = resultToRawArray(&irResults);
-      if (capturedRaw != nullptr && capturedRawLength > 0) {
-        capturePending = false;
-        Serial.println("Raw capture saved in RAM. Aim transmitter at AC, then type replay. Lost at reboot.");
-      } else {
-        delete[] capturedRaw;
-        capturedRaw = nullptr;
-        capturedRawLength = 0;
-        Serial.println("Raw capture allocation failed; try again.");
-      }
-    }
-    Serial.println("IR capture received:");
-    Serial.println(resultToHumanReadableBasic(&irResults));
-    Serial.println(resultToSourceCode(&irResults));
-    irReceiver.resume();
-  }
-
   checkSerial();
 
-  if (!capturePending && millis() - lastDhtReadMs >= kDhtIntervalMs) {
+  if (millis() - lastDhtReadMs >= kDhtIntervalMs) {
     lastDhtReadMs = millis();
     printDht();
   }
@@ -551,14 +470,14 @@ void loop() {
     lastReconnectMs = millis();
     WiFi.reconnect();
   }
-  if (!capturePending && WiFi.status() == WL_CONNECTED &&
+  if (WiFi.status() == WL_CONNECTED &&
       millis() - lastPollMs >= kPollIntervalMs) {
     lastPollMs = millis();
     pollCloud();
   }
-  if (!capturePending && (!INUVAIR_DEEP_SLEEP || cloudSynced || millis() >= 30000)) runDailySchedule();
-  if (!capturePending) updateIdlePowerSaving();
-  if (!capturePending && millis() >= 2000) sleepWhenReady();
+  if ((!INUVAIR_DEEP_SLEEP || cloudSynced || millis() >= 30000)) runDailySchedule();
+  updateIdlePowerSaving();
+  if (millis() >= 2000) sleepWhenReady();
 
   delay(5);
 }
