@@ -41,46 +41,25 @@ export function createClient(){return {
       return route.continue();
     });
     await page.goto(base + '/dashboard.html#overview');
-    await page.locator('.capture-test').first().waitFor();
-    assert.equal(await page.locator('.capture-test').count(), 4);
-    assert.equal(await page.locator('.authorized-climate-card').count(), 1);
-    assert.match(await page.locator('.climate-display').innerText(), /28.0 °C/);
-    assert.equal(await page.getByLabel('Fan speed').isEnabled(), false);
+    await page.locator('.assigned-room').first().waitFor();
+    assert.equal(await page.locator('.capture-test, .authorized-climate-card').count(), 0);
+    assert.match(await page.locator('.assigned-room').innerText(), /28.0 °C/);
+    assert.deepEqual(await page.evaluate(()=>window.captureWrites), []);
     for (const width of [390,1440]) {
       await page.setViewportSize({width,height:1000});
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     }
-    await assert.rejects(page.getByRole('spinbutton').waitFor({ timeout:100 }));
-    for (const action of ['test_temp_down','test_temp_up','test_mode','test_powerful']) {
-      await page.locator('.capture-test[data-action="'+action+'"]').click();
-      await page.waitForFunction(action => window.captureWrites.some(write => write.value.action === action), action);
-    }
-    assert.deepEqual(await page.evaluate(()=>window.captureWrites.map(w=>w.value)), ['test_temp_down','test_temp_up','test_mode','test_powerful'].map(action=>({device_id:'01',requested_by:'member',action})));
-    assert.match(await page.locator('#capture-status-01').innerText(), /no target temperature is confirmed/);
-    const refreshOverview = async changes => {
-      await page.evaluate(changes => Object.assign(window, changes), changes);
-      await page.evaluate(()=>{location.hash='alerts'});
-      await page.waitForFunction(()=>document.getElementById('breadcrumb').textContent==='Notifications');
-      await page.evaluate(()=>{location.hash='overview'});
-      await page.locator('.capture-test').first().waitFor();
-    };
-    await refreshOverview({ captureVersion:null });
-    assert.equal(await page.locator('.capture-test:disabled').count(),4);
-    await refreshOverview({ captureVersion:1,captureOnline:false });
-    assert.equal(await page.locator('.capture-test:disabled').count(),4);
-    await refreshOverview({ captureOnline:true });
     await page.evaluate(()=>{window.captureRole='admin';location.hash='device/01'});
     await page.locator('.manual').first().waitFor();
-    assert.equal(await page.locator('.capture-test:not(:disabled)').count(),4);
-    for (const width of [390,1440]) {
-      await page.setViewportSize({width,height:1000});
-      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-    }
-    await page.evaluate(()=>{window.captureAccess=false;location.hash='overview'});
+    assert.equal(await page.locator('.manual').count(), 2);
+    assert.equal(await page.locator('.capture-test').count(), 0);
+    assert.equal(await page.getByText('Captured remote tests', {exact:true}).count(), 0);
+    assert.deepEqual(await page.evaluate(()=>window.captureWrites), []);
+    await page.evaluate(()=>{window.captureRole='authorized';window.captureAccess=false;location.hash='overview'});
     await page.waitForFunction(()=>document.getElementById('breadcrumb').textContent==='Overview');
-    await page.waitForFunction(()=>document.querySelectorAll('.capture-test').length===0);
+    await page.waitForFunction(()=>document.querySelectorAll('.assigned-room').length===0);
     assert.deepEqual(errors,[]);
-    console.log('PASS: authorized/admin test buttons, exact command payloads, legacy/offline gating, loss of room access, mobile overflow and no browser errors.');
+    console.log('PASS: captured controls absent for authorized/admin, room readings preserved, admin ON/OFF retained, no command writes, access removal, mobile/desktop overflow, no browser errors.');
   } finally {
     if (browser) await browser.close();
     await new Promise(ok => server.close(ok));
