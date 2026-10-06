@@ -1,5 +1,7 @@
 # AUX IR Capture Records
 
+> These records were made with an IR receiver that has since been removed from the hardware. To take a new capture, temporarily connect one as described in [IR troubleshooting](../ir-troubleshooting.md#taking-new-captures).
+
 Do not add invented values. Create one record for every real capture, preferably a Markdown file with a descriptive name such as `aux-dc-inverter-on-2026-09-18.md`.
 
 Record all of the following:

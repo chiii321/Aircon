@@ -1,6 +1,6 @@
 # CODEX HANDOFF — IoT Air Conditioning Control and Energy Monitoring System
 
-> **Historical planning document.** It records the original requirements and is kept for context. For current status, read the [README](README.md), [docs/wiring.md](docs/wiring.md), and [docs/live-setup.md](docs/live-setup.md). Since this brief was written, the project has moved on: the physical buttons were removed, the 3-pin transmitter module was replaced by a harvested IR LED on a 2N2222A driver, AUX remote captures were recorded under `docs/ir-captures/`, and the website, Supabase backend, and on-device daily schedules were built. Physical AC response, temperature automation, and energy monitoring remain unverified or future work.
+> **Historical planning document.** It records the original requirements and is kept for context. For current status, read the [README](README.md), [docs/wiring.md](docs/wiring.md), and [docs/live-setup.md](docs/live-setup.md). Since this brief was written, the project has moved on: the physical buttons and IR receiver were removed, the transmitter became two IR LEDs on one 2N2222A driver, the board became a 38-pin ESP32 on solar and battery power (see [INUVAIR_HARDWARE_AND_POWER_PLAN.md](INUVAIR_HARDWARE_AND_POWER_PLAN.md)), AUX remote captures were recorded under `docs/ir-captures/`, and the website, Supabase backend, and on-device daily schedules were built. Physical AC response, temperature automation, and energy monitoring remain unverified or future work.
 
 ## 1. Project
 
