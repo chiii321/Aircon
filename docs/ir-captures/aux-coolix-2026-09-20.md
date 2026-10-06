@@ -1,6 +1,6 @@
 # AUX remote COOLIX captures (reported 2026-09-20)
 
-The user captured these with the original remote and labeled each from the button pressed. Both decoded as 24-bit `COOLIX` frames. A fresh capture over COM4 confirmed each code again on 2026-09-20:
+The user captured these with the original remote and labeled each from the button pressed. Both decoded as 24-bit `COOLIX` frames. A fresh capture confirmed each code again on 2026-09-20:
 
 | Remote action | Decoded code | Raw timings |
 | --- | --- | --- |

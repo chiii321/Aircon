@@ -1,8 +1,8 @@
 # AC does not respond: hardware handoff
 
-Current software fixes do not establish working physical replay. The reported logs
-(`Physical ON/OFF button pressed` followed by `Sent AUX ...`) prove that GPIO input
-reaches the sender. They do not prove IR light, correct modulation, range, or AC reception.
+Software changes alone don't establish working physical replay. A `Sent ...` line in
+Serial Monitor proves the firmware called the IR sender. It doesn't prove IR light,
+correct modulation, range, or AC reception.
 
 ## Upload the same revision
 
@@ -12,17 +12,17 @@ record `git rev-parse --short HEAD`. Open only
 `status` output (including build date/time). Pulling GitHub changes does not update
 the firmware already on the ESP32. Keep local credentials out of Git.
 
-The current firmware sends the latest button-labeled captures: ON is COOLIX
-`0xB21F48`; OFF is the saved 199-timing raw frame because it decoded as UNKNOWN.
-Earlier COOLIX and ELECTRA_AC captures remain archived under `docs/ir-captures/`.
-Replay with the transmitter still requires physical verification.
+The current firmware replays ELECTRA_AC raw frames for both `on` and `off`. Earlier
+COOLIX captures remain archived under `docs/ir-captures/`, along with a note on an
+unresolved ON/OFF labeling conflict. Replay still requires physical verification.
 
 ## Test one link at a time
 
 1. Confirm the original remote operates the AC. Record exact AC and remote model
-   numbers. The current transmitter uses a bare 5mm 940 nm LED with a 2N2222A
-   driver as shown in [wiring.md](wiring.md). Size the series resistor from the
-   LED datasheet and measured supply voltage.
+   numbers. The current transmitter is a temporary harvested IR LED driven by a
+   2N2222A, as shown in [wiring.md](wiring.md). Its wavelength and ratings are
+   unconfirmed. When the planned 940 nm LED arrives, size its series resistor from
+   the LED datasheet and the measured supply voltage.
 2. At 115200 baud, send `testir` and compare through a phone camera with the
    original remote. A camera that blocks 940 nm may show neither; no visible
    camera flash does not establish a failed transmitter. Then try `on` and `off` separately while
@@ -59,8 +59,8 @@ drive a high-current LED directly from a GPIO or feed 5V into ESP32 GPIO/3V3.
 
 ## Record the result on GitHub
 
-Use one small branch/PR per change; pull before editing. CI checks both firmware
-modes and the host tests, but a green check does not verify the AC. In a capture
+Use one small branch/PR per change; pull before editing. CI compiles the firmware,
+but a green check does not verify the AC. In a capture
 record or PR, include this filled-in template (no network credentials):
 
 ```text
@@ -70,7 +70,6 @@ AC / remote / transmitter / receiver model or markings:
 Power source and wiring checked:
 Original remote works:
 Serial on/off AC response:
-Physical button AC response:
 Raw replay ON/OFF response:
 Distance / orientation:
 Complete Serial capture output:

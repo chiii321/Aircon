@@ -40,3 +40,7 @@ supabase/*.local
 
 .vercel
 .env*
+
+# Local logs and helper scripts that may print or load secrets
+*.log
+setup-supabase-env.ps1

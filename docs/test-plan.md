@@ -1,8 +1,10 @@
 # Stage 1 verification
 
+> **Historical checklist.** Anything below that mentions physical buttons or GPIO 33/26 comes from the earlier standalone prototype. The current Wi-Fi sketch no longer reads buttons, so skip those parts and keep the rest. Follow [live setup](live-setup.md) for connection and dashboard verification.
+
 Use the maintained sketch and wiring in the README. No physical tests below have been performed by this audit.
 
-For the reported no-response issue, first follow [IR troubleshooting](ir-troubleshooting.md). Firmware uses the latest remote-labeled ON COOLIX capture and OFF raw frame. Replay with the bare 940 nm LED and transistor driver remains unverified; see [wiring.md](wiring.md).
+For the reported no-response issue, first follow [IR troubleshooting](ir-troubleshooting.md). Firmware replays ELECTRA_AC raw frames for ON and OFF. Replay through the transistor-driven LED remains unverified; see [wiring.md](wiring.md).
 
 1. Upload to the ESP32-WROOM-32 using the documented board/library versions. At 115200 baud, run `status` and check GPIOs 25/27/32/33/26. Boot must not transmit a command.
 2. Verify plausible DHT22 readings every two seconds and with `dht`. Disconnect DATA temporarily: a read failure should be reported and buttons/IR capture should continue. Reconnect and confirm recovery.
@@ -14,6 +16,3 @@ For the reported no-response issue, first follow [IR troubleshooting](ir-trouble
 8. Disconnect the laptop and boot from a USB power bank. Verify both buttons physically control the AC. Restart with a button held: no transmission until release and a fresh press. Test idle operation for the intended demonstration duration and confirm the power bank remains on.
 
 Record date, hardware versions, pass/fail, and observed behavior. Keep replay marked unverified until the real AC responds correctly and repeatedly.
-# Historical Stage 1 checklist
-
-The button checks below apply to the earlier standalone prototype. The current Wi-Fi sketch no longer reads physical buttons. Follow [live setup](live-setup.md) for connection and dashboard verification.
