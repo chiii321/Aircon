@@ -2,9 +2,11 @@
 
 // Daily schedules repeat in Asia/Manila. A boundary already reached today
 // belongs to tomorrow; runDailySchedule handles today's event before sleeping.
+// C++11 constexpr: the body must be a single return statement (ESP32 core 2.x).
 constexpr int inuvairBoundaryDelay(int secondOfDay, int boundaryMinute) {
-  const int difference = boundaryMinute * 60 - secondOfDay;
-  return difference > 0 ? difference : difference + 86400;
+  return boundaryMinute * 60 - secondOfDay > 0
+      ? boundaryMinute * 60 - secondOfDay
+      : boundaryMinute * 60 - secondOfDay + 86400;
 }
 
 constexpr bool inuvairScheduleNeedsActive(int secondOfDay, int onMinute, int offMinute, bool held) {
