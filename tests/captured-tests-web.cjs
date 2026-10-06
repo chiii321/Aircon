@@ -43,6 +43,13 @@ export function createClient(){return {
     await page.goto(base + '/dashboard.html#overview');
     await page.locator('.capture-test').first().waitFor();
     assert.equal(await page.locator('.capture-test').count(), 4);
+    assert.equal(await page.locator('.authorized-climate-card').count(), 1);
+    assert.match(await page.locator('.climate-display').innerText(), /28.0 °C/);
+    assert.equal(await page.getByLabel('Fan speed').isEnabled(), false);
+    for (const width of [390,1440]) {
+      await page.setViewportSize({width,height:1000});
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    }
     await assert.rejects(page.getByRole('spinbutton').waitFor({ timeout:100 }));
     for (const action of ['test_temp_down','test_temp_up','test_mode','test_powerful']) {
       await page.locator('.capture-test[data-action="'+action+'"]').click();

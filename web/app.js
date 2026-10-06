@@ -75,6 +75,21 @@ function renderCaptureTests(d) {
   const ready = deviceStatus(d) === 'online' && d.capture_test_version === 1
   return `<div class="rule"></div><h3>Captured remote tests</h3><p class="muted">Replay the recorded button signals. Exact temperature, selected mode, and Powerful on/off behavior are unverified. These signals may also change other AC settings.</p><div class="button-row">${Object.entries(captureTestLabels).map(([action, label]) => `<button class="secondary capture-test" type="button" data-device-id="${esc(d.id)}" data-action="${action}" ${ready ? '' : 'disabled'}>${label}</button>`).join('')}</div>${d.capture_test_version === 1 ? '' : '<p class="muted">Upload the separate capture-test firmware to enable these buttons.</p>'}<p class="status-text" role="status" id="capture-status-${esc(d.id)}"></p>`
 }
+function renderAuthorizedClimate(d) {
+  const ready = deviceStatus(d) === 'online' && d.capture_test_version === 1
+  const button = (action, content, classes) => `<button class="capture-test ${classes}" type="button" data-device-id="${esc(d.id)}" data-action="${action}" aria-label="${captureTestLabels[action]}" ${ready ? '' : 'disabled'}>${content}</button>`
+  return `<article class="card assigned-room authorized-climate-card"><div class="panel-top"><div><strong>${esc(d.name)}</strong><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div>
+    <div class="climate-display"><h3>Room temperature</h3><b>${hasReading(d) ? temperature(d.temperature_c) : '—'}</b><p>Sensor reading · AC target unverified</p></div>
+    <div class="climate-temperature-controls">${button('test_temp_down', '<img src="assets/climate-minus.svg" alt="">', 'secondary climate-step')}<span>Temperature tests</span>${button('test_temp_up', '<img src="assets/climate-plus.svg" alt="">', 'secondary climate-step')}</div>
+    <div class="climate-field"><label>Mode</label><div class="climate-modes">${button('test_mode', 'Test MODE', 'primary')}<button class="secondary" type="button" disabled>Fan</button><button class="secondary" type="button" disabled>Dry</button></div><small>Selected mode is unverified.</small></div>
+    <div class="climate-field"><label for="climate-fan-${esc(d.id)}">Fan speed</label><select id="climate-fan-${esc(d.id)}" disabled><option>Not available</option></select></div>
+    ${button('test_powerful', 'Test POWERFUL', 'primary climate-powerful')}
+    <p class="climate-power-state">AC state (estimated): <strong>${estimatedAcState(d)}</strong><small>Power control is managed by the administrator.</small></p>
+    <p class="climate-help">Captured signals may change other settings. Check the AC response after each test.</p>
+    ${d.capture_test_version === 1 ? '' : '<p class="climate-help">Upload the separate capture-test firmware to enable these buttons.</p>'}
+    <p class="status-text" role="status" id="capture-status-${esc(d.id)}"></p>
+    <div class="climate-footer"><span>Humidity ${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</span><small>Last active: ${esc(seen(d))}</small></div>${wakeText(d)}</article>`
+}
 function attachCaptureTests() {
   document.querySelectorAll('.capture-test').forEach(button => button.onclick = async () => {
     const id = button.dataset.deviceId
@@ -118,13 +133,13 @@ function renderOverview() {
   const workspace = isAdmin()
     ? `<div class="overview-actions"><a class="overview-action" href="#monitoring"><span>◉</span><strong>Live monitoring</strong><b>Open monitoring →</b></a><a class="overview-action" href="#devices"><span>▤</span><strong>Device registry</strong><b>Manage devices →</b></a></div>`
     : `<div class="overview-actions"><a class="overview-action" href="#alerts"><span>♧</span><strong>Notifications</strong><b>View notifications →</b></a></div>`
-  const assignedRooms = devices.map(d => `<article class="card assigned-room"><div class="panel-top"><div><strong>${esc(d.name)}</strong><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="reading-grid"><div class="reading"><label>Temperature</label><b>${hasReading(d) ? temperature(d.temperature_c) : '—'}</b></div><div class="reading"><label>Humidity</label><b>${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</b></div><div class="reading"><label>AC state (estimated)</label><b>${estimatedAcState(d)}</b></div></div>${wakeText(d)}<p class="muted">Last active: ${esc(seen(d))}</p>${renderCaptureTests(d)}</article>`).join('')
+  const assignedRooms = devices.map(renderAuthorizedClimate).join('')
   const checkinCards = renderClassCheckins()
   return `<div class="page overview-page"><div class="overview-brand"><span class="logo-box"><img class="brand-symbol" src="assets/inuvair-logo-light-v2.svg" alt=""></span><span class="brand-name">INUVAIR</span><span class="brand-caption">ROOM CLIMATE</span></div>
     ${classResponseMessage ? banner('Schedule response saved', esc(classResponseMessage)) : ''}
     <div class="summary-grid"><div class="card summary-card"><span class="summary-icon">⌂</span><div><div class="stat-label">ROOMS TRACKED</div><b>${assignedDeviceCount}</b></div></div><div class="card summary-card"><span class="summary-icon">◉</span><div><div class="stat-label">ONLINE NOW</div><b>${online}</b></div></div><div class="card summary-card"><span class="summary-icon">✓</span><div><div class="stat-label">PROVISIONED</div><b>${provisioned}<small class="summary-total"> / ${devices.length}</small></b></div></div></div>
     <section class="card room-card overview-links"><div class="card-heading"><div><h1>${isAdmin() ? 'Choose a workspace' : 'Your assigned devices'}</h1></div></div>${workspace}</section>
-    ${!isAdmin() ? `<section class="assigned-room-list"><div class="section-heading"><h2>Assigned device status</h2></div>${assignedRooms || '<div class="card empty">No active schedule slot.</div>'}</section>${checkinCards}` : ''}
+    ${!isAdmin() ? `<section class="assigned-room-list"><div class="section-heading"><h2>Assigned device status</h2></div><div class="authorized-climate-grid">${assignedRooms || '<div class="card empty">No active schedule slot.</div>'}</div></section>${checkinCards}` : ''}
     ${heldDeviceIds.size ? `<section class="card alerts-card schedule-held"><strong>Schedule paused</strong><p>Paused for: ${[...heldDeviceIds].map(deviceName).map(esc).join(', ')}</p><div class="confirmation-actions"><button class="secondary resume-schedule" type="button">Resume schedules</button></div></section>` : ''}
     ${renderEnergyCharts()}
     <section class="card alerts-card"><div class="card-heading"><div><h2>Notifications</h2></div><span class="alert-count">${attention}</span></div>${attention ? `<p class="alert-row"><span class="alert-mark">!</span><span><strong>${attention} assigned controller${attention === 1 ? '' : 's'} offline or awaiting setup</strong></span><a href="#alerts" aria-label="Open notifications">→</a></p>` : '<p class="alert-clear">No notifications.</p>'}</section></div>`
