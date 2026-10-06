@@ -2,7 +2,7 @@
 
 - Updated: 2026-10-05T22:54:00+08:00
 - Status: blocked
-- Workspace / branch / commit: C:\Users\Gwen\Desktop\aircon / codex/inuvair-vercel-release / 6ca6bcf; changes uncommitted alongside earlier work.
+- Workspace / branch / commit: local checkout / codex/inuvair-vercel-release / 6ca6bcf; changes uncommitted alongside earlier work.
 
 ## Objective and constraints
 Automatically turn AC on/off at Excel weekly booking boundaries in Philippine time. User confirmed no ESP32 is connected; do not claim hardware upload or physical response.

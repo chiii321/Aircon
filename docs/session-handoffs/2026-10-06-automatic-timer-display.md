@@ -2,7 +2,7 @@
 
 - Updated: 2026-10-06T00:00:00+08:00
 - Status: completed
-- Workspace / branch / commit: C:\Users\Gwen\Desktop\aircon / codex/inuvair-vercel-release / 6ca6bcf; edits uncommitted.
+- Workspace / branch / commit: local checkout / codex/inuvair-vercel-release / 6ca6bcf; edits uncommitted.
 
 ## Objective and constraints
 Show today's Excel bookings as automatic ON/OFF timers, replacing the separate Daily schedule table. Preserve manual timers and weekday-specific weekly control; do not duplicate bookings into repeating daily database rows.

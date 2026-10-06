@@ -2,7 +2,7 @@
 
 - Updated: 2026-10-06T00:00:00+08:00
 - Status: in progress
-- Workspace / branch / commit: C:\Users\Gwen\Desktop\aircon / codex/inuvair-vercel-release; commit pending.
+- Workspace / branch / commit: local checkout / codex/inuvair-vercel-release; commit pending.
 
 ## Objective and constraints
 User authorized pushing current website/schedule updates to GitHub. Preserve unrelated local files and exclude credentials/logs.
