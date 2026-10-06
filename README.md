@@ -35,7 +35,7 @@ Initially test 10–20 cm from the AC receiver. Phone-camera visibility depends 
 
 ## System architecture
 
-For upload and first connection, start with [live setup](docs/live-setup.md). The [website handoff](docs/website-handoff.md) records the earlier planning state.
+For upload and first connection, start with [live setup](docs/live-setup.md). The [website handoff](docs/website-handoff.md) covers the site's layout and secret-handling rules.
 
 ```text
 Website
@@ -57,22 +57,21 @@ The ESP32 executes synced schedules locally. A browser does not need to remain o
 ## Repository structure
 
 ```text
-aircon/
-├── AGENTS.md
+Aircon/
+├── AGENTS.md                  Working rules for contributors and agents
 ├── README.md
-├── .gitignore
+├── vercel.json                Serves web/ on Vercel
+├── .github/workflows/         Firmware compile check
 ├── firmware/
-│   └── stage1_hardware_test/
-│       └── stage1_hardware_test.ino
-├── docs/
-│   ├── wiring.md
-│   └── ir-captures/
-│       └── README.md
-├── web/
-│   └── index.html
-└── database/
-    └── schema.sql
+│   └── stage1_hardware_test/  Maintained ESP32 sketch, CA cert, credentials template
+├── supabase/
+│   ├── migrations/            Database schema and row level security
+│   └── functions/device-sync/ API the ESP32 polls
+├── web/                       Static website and dashboard
+└── docs/                      Setup, wiring, IR captures, and handoff notes
 ```
+
+`CODEX_HANDOFF_AC_IOT.md` is the original project brief, kept for context. `PIN_CONNECTION_LAYOUT.md` is a quick pin reference.
 
 ## Required Arduino libraries
 
@@ -83,7 +82,7 @@ Install these through the Arduino IDE Library Manager:
 - **IRremoteESP8266** by David Conran and contributors
 - **ArduinoJson** by Benoit Blanchon
 
-CI targets ESP32 board package **2.0.17**, IRremoteESP8266 **2.8.6**, DHT sensor library **1.4.6**, Adafruit Unified Sensor **1.1.15**, and ArduinoJson **7.4.3**. A local build succeeded with ESP32 core **3.3.11** and the installed current libraries. CI's older package combination has not yet run against this change.
+CI compiles the sketch on every push with ESP32 board package **2.0.17**, IRremoteESP8266 **2.8.6**, DHT sensor library **1.4.6**, Adafruit Unified Sensor **1.1.15**, and ArduinoJson **7.4.3**. A local build has also succeeded with ESP32 core **3.3.11**.
 
 The sketch uses Wi-Fi, HTTPS polling, NTP, and locally cached daily schedule windows. GPIO 33 and 26 are not used for buttons.
 
@@ -96,11 +95,11 @@ The sketch uses Wi-Fi, HTTPS polling, NTP, and locally cached daily schedule win
 5. Open Serial Monitor at **115200 baud**, with **Newline**, **Carriage return**, or **Both NL & CR** enabled. Commands are processed only when a line ends.
 6. Run `status`, then `dht` to confirm sensor readings.
 7. Aim the AUX remote at the IR receiver and press its ON and OFF commands separately. Copy each printed source/raw capture into a documented capture record.
-8. Current commands follow the latest button-labeled remote captures: ON sends COOLIX `0xB21F48`; OFF replays the saved 199-timing raw frame because its decoder result was UNKNOWN. Use `on` and `off` to test actual AC response. If either fails, follow [IR troubleshooting](docs/ir-troubleshooting.md), including the `capture` / `replay` diagnostic. Earlier captures remain archived under `docs/ir-captures/`.
+8. Use `on` and `off` to test the actual AC response. Both commands replay captured ELECTRA_AC raw frames (104 bits, 211 timings each) at 38 kHz; `status` prints the state bytes for each. If either fails, follow [IR troubleshooting](docs/ir-troubleshooting.md), including the `capture` / `replay` diagnostic. Earlier COOLIX captures are archived under `docs/ir-captures/`; see that folder's README for an unresolved ON/OFF labeling conflict.
 
 Available serial commands: `status`, `dht`, `on`, `off`, `testir`, `capture`, and `replay`. `testir` sends repeated 38 kHz bursts for an optical emission check; a camera may filter them. `capture` records the next non-overflowed, non-repeat remote frame in RAM and pauses DHT reads for up to 60 seconds. `replay` transmits the captured raw timings at 38 kHz.
 
-Only `firmware/stage1_hardware_test/stage1_hardware_test.ino` is maintained. The root `esp32_stage1_hardware_test.ino` is a retired marker that deliberately stops compilation and points to the maintained sketch.
+Only `firmware/stage1_hardware_test/stage1_hardware_test.ino` is maintained.
 
 ## USB power
 
@@ -116,7 +115,7 @@ With the versions above installed, build without uploading:
 arduino-cli compile --fqbn esp32:esp32:esp32 firmware/stage1_hardware_test
 ```
 
-The old `tests/test_stage1.py` still targets the retired button behavior and is not part of current CI. The firmware compile checks integration; physical IR and network behavior require a device test.
+The firmware compile checks integration; physical IR and network behavior require a device test.
 
 ## Working together through GitHub
 
@@ -147,6 +146,7 @@ Pull with `git pull --ff-only` before editing/uploading. Use small branches/PRs 
 
 ## Unresolved questions
 
+- Which ELECTRA_AC frame really turns the AC ON? The firmware labels and the 2026-09-18 capture records disagree; see [IR captures](docs/ir-captures/README.md).
 - Which exact DHT22 module variant is used, and does it require an external pull-up resistor on DATA?
 - Does physical replay with the temporary transistor-driven LED reliably reproduce the confirmed ON/OFF captures?
 - Does the transistor driver and datasheet-sized resistor provide reliable IR range?

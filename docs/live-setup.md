@@ -1,15 +1,15 @@
 # Live controller setup
 
-Website: https://inuvair.vercel.app/ (alias: https://aircon-bay.vercel.app/)
+Website: https://inuvair.vercel.app/
 
-The Vercel production project serves the `web/` directory. The GitHub repository has the site source and `vercel.json`; the current Vercel production version was deployed directly from `web/`. The earlier Cloudflare Pages deployment remains at https://aircon-control-gwen.pages.dev/ and may lag behind.
+The Vercel production project serves the `web/` directory, as set in `vercel.json`.
 
 The current firmware ID is `01`. The database has slots `01` through `11`; only `01` has a provisioned credential. A slot is **online** only after its ESP32 reports a heartbeat within the past 30 seconds. Do not mistake a queued command or an IR-send acknowledgement for a verified physical AC state.
 
 ## Before uploading ESP32 01
 
 1. Remove the prototype's physical ON/OFF buttons. The sketch no longer reads GPIO 33 or 26. Keep DHT22, IR receiver, and IR transmitter wiring as documented in [wiring.md](wiring.md).
-2. Open the local, Git-ignored `firmware/stage1_hardware_test/device_credentials.h`. If it is absent on a fresh checkout, copy `device_credentials.example.h` and provision a unique token before uploading. On this workspace, replace `YOUR_WIFI_NAME` and `YOUR_WIFI_PASSWORD` with the actual **2.4 GHz** Wi-Fi credentials. Keep the generated `DEVICE_TOKEN` unchanged. Do not share or commit this file.
+2. Open the local, Git-ignored `firmware/stage1_hardware_test/device_credentials.h`. If it is absent on a fresh checkout, copy `device_credentials.example.h` and provision a unique token before uploading. Replace `YOUR_WIFI_NAME` and `YOUR_WIFI_PASSWORD` with the actual **2.4 GHz** Wi-Fi credentials. If a token was already provisioned for this board, keep that `DEVICE_TOKEN` unchanged. Do not share or commit this file.
 3. Install ESP32 core 2.0.17 and the library versions listed in [README.md](../README.md), including ArduinoJson 7.4.3. Compile and upload `firmware/stage1_hardware_test/stage1_hardware_test.ino`.
 4. Open Serial Monitor at 115200 baud and send `status`. Confirm `Device ID: 01` and `Wi-Fi: connected`. The website should show device 01 online after a successful HTTPS poll. If it remains offline, check Serial for HTTP errors, Wi-Fi association, and clock synchronization.
 

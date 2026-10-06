@@ -35,3 +35,7 @@ service-account*.json
 firmware/stage1_hardware_test/device_credentials.h
 supabase/*.local
 .vercel/
+
+# Local logs and helper scripts that may print or load secrets
+*.log
+setup-supabase-env.ps1
