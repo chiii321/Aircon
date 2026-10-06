@@ -67,6 +67,8 @@ export async function handleDeviceSync(request: Request) {
     return reply({ recorded: true })
   }
   if (body.type === 'poll') {
+    const captureTestVersion = body.capture_test_version ?? null
+    if (captureTestVersion !== null && captureTestVersion !== 1) return reply({ error: 'Invalid capture test version' }, 400)
     const powerMode = body.power_mode ?? null
     if (powerMode !== null && powerMode !== 'active' && powerMode !== 'modem_sleep') return reply({ error: 'Invalid power mode' }, 400)
     const temperature = body.temperature_c
@@ -80,6 +82,7 @@ export async function handleDeviceSync(request: Request) {
       power_mode: powerMode,
       temperature_c: temperature,
       humidity_pct: humidity,
+      capture_test_version: captureTestVersion,
     }).eq('id', deviceId)
     if (heartbeatError) return reply({ error: 'Heartbeat failed' }, 500)
     if (temperature !== null) {
@@ -93,7 +96,7 @@ export async function handleDeviceSync(request: Request) {
     }).eq('device_id', deviceId).eq('status', 'queued').lte('expires_at', now)
     if (expiryError) return reply({ error: 'Command expiry failed' }, 500)
     const [{ data: commands, error: commandsError }, { data: device, error: deviceError }, { data: schedules, error: schedulesError }, { data: bookings, error: bookingsError }] = await Promise.all([
-      db.from('device_commands').select('id,action,expires_at').eq('device_id', deviceId).eq('status', 'queued').gt('expires_at', now).order('id').limit(1),
+      db.from('device_commands').select('id,action,expires_at').eq('device_id', deviceId).eq('status', 'queued').in('action', captureTestVersion === 1 ? ['on', 'off', 'test_temp_down', 'test_temp_up', 'test_mode', 'test_powerful'] : ['on', 'off']).gt('expires_at', now).order('id').limit(1),
       db.from('devices').select('schedule_hold').eq('id', deviceId).single(),
       db.from('device_schedules').select('id,on_time,off_time,enabled').eq('device_id', deviceId).eq('enabled', true).order('on_time'),
       db.from('weekly_room_assignments').select('weekday,start_time,end_time').eq('device_id', deviceId).order('weekday').order('start_time').limit(5000),

@@ -69,6 +69,32 @@ const temperature = value => {
 }
 const displayName = profile => [profile?.first_name, profile?.last_name].filter(Boolean).join(' ')
 const isAdmin = () => accessContext?.role === 'admin'
+const captureTestLabels = { test_temp_down: 'Test temperature down', test_temp_up: 'Test temperature up', test_mode: 'Test MODE', test_powerful: 'Test POWERFUL' }
+const actionLabel = action => captureTestLabels[action] || action?.toUpperCase() || 'Unknown'
+function renderCaptureTests(d) {
+  const ready = deviceStatus(d) === 'online' && d.capture_test_version === 1
+  return `<div class="rule"></div><h3>Captured remote tests</h3><p class="muted">Replay the recorded button signals. Exact temperature, selected mode, and Powerful on/off behavior are unverified. These signals may also change other AC settings.</p><div class="button-row">${Object.entries(captureTestLabels).map(([action, label]) => `<button class="secondary capture-test" type="button" data-device-id="${esc(d.id)}" data-action="${action}" ${ready ? '' : 'disabled'}>${label}</button>`).join('')}</div>${d.capture_test_version === 1 ? '' : '<p class="muted">Upload the separate capture-test firmware to enable these buttons.</p>'}<p class="status-text" role="status" id="capture-status-${esc(d.id)}"></p>`
+}
+function attachCaptureTests() {
+  document.querySelectorAll('.capture-test').forEach(button => button.onclick = async () => {
+    const id = button.dataset.deviceId
+    const d = devices.find(device => device.id === id)
+    if (!d || deviceStatus(d) !== 'online' || d.capture_test_version !== 1) return
+    const buttons = [...document.querySelectorAll('.capture-test')].filter(item => item.dataset.deviceId === id)
+    buttons.forEach(item => { item.disabled = true })
+    const statusId = `capture-status-${id}`
+    try {
+      setMessage(statusId, 'Queuing captured signal…')
+      const { error } = await api.from('device_commands').insert({ device_id: id, requested_by: session.user.id, action: button.dataset.action })
+      if (error) throw error
+      setMessage(statusId, `${actionLabel(button.dataset.action)} queued. Check the AC response; no target temperature is confirmed.`)
+    } catch (error) {
+      setMessage(statusId, error.message || 'Could not queue captured signal.', true)
+    } finally {
+      buttons.forEach(item => { item.disabled = false })
+    }
+  })
+}
 const pageHead = (label, title, sub) => `<h1>${title}</h1>${sub ? `<p class="lead">${sub}</p>` : ""}`
 const banner = (title, body, warn = false) => `<div class="banner ${warn ? 'warn' : ''}"><span aria-hidden="true">${warn ? '◉' : '✳'}</span><div><strong>${title}</strong>${body}</div></div>`
 
@@ -92,7 +118,7 @@ function renderOverview() {
   const workspace = isAdmin()
     ? `<div class="overview-actions"><a class="overview-action" href="#monitoring"><span>◉</span><strong>Live monitoring</strong><b>Open monitoring →</b></a><a class="overview-action" href="#devices"><span>▤</span><strong>Device registry</strong><b>Manage devices →</b></a></div>`
     : `<div class="overview-actions"><a class="overview-action" href="#alerts"><span>♧</span><strong>Notifications</strong><b>View notifications →</b></a></div>`
-  const assignedRooms = devices.map(d => `<article class="card assigned-room"><div class="panel-top"><div><strong>${esc(d.name)}</strong><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="reading-grid"><div class="reading"><label>Temperature</label><b>${hasReading(d) ? temperature(d.temperature_c) : '—'}</b></div><div class="reading"><label>Humidity</label><b>${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</b></div><div class="reading"><label>AC state (estimated)</label><b>${estimatedAcState(d)}</b></div></div>${wakeText(d)}<p class="muted">Last active: ${esc(seen(d))}</p></article>`).join('')
+  const assignedRooms = devices.map(d => `<article class="card assigned-room"><div class="panel-top"><div><strong>${esc(d.name)}</strong><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="reading-grid"><div class="reading"><label>Temperature</label><b>${hasReading(d) ? temperature(d.temperature_c) : '—'}</b></div><div class="reading"><label>Humidity</label><b>${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</b></div><div class="reading"><label>AC state (estimated)</label><b>${estimatedAcState(d)}</b></div></div>${wakeText(d)}<p class="muted">Last active: ${esc(seen(d))}</p>${renderCaptureTests(d)}</article>`).join('')
   const checkinCards = renderClassCheckins()
   return `<div class="page overview-page"><div class="overview-brand"><span class="logo-box"><img class="brand-symbol" src="assets/inuvair-logo-light-v2.svg" alt=""></span><span class="brand-name">INUVAIR</span><span class="brand-caption">ROOM CLIMATE</span></div>
     ${classResponseMessage ? banner('Schedule response saved', esc(classResponseMessage)) : ''}
@@ -283,7 +309,7 @@ function commandStatus(c) {
 }
 
 function renderHistory() {
-  const rows = commandHistory.map(c => `<tr><td>${esc(formatDate(c.requested_at))}</td><td><strong>${esc(deviceName(c.device_id))}</strong><br><small>${esc(c.device_id)}</small></td><td><span class="command-action ${esc(c.action)}">${esc(c.action.toUpperCase())}</span></td><td><span class="badge command-${esc(c.status)}">${commandStatus(c)}</span></td><td>${esc(c.error_message || (c.status === 'sent_ir' ? 'IR transmission acknowledged; AC response unverified' : c.status === 'queued' ? 'Waiting for device acknowledgement' : 'See device status'))}</td></tr>`).join('')
+  const rows = commandHistory.map(c => `<tr><td>${esc(formatDate(c.requested_at))}</td><td><strong>${esc(deviceName(c.device_id))}</strong><br><small>${esc(c.device_id)}</small></td><td><span class="command-action ${esc(c.action)}">${esc(actionLabel(c.action))}</span></td><td><span class="badge command-${esc(c.status)}">${commandStatus(c)}</span></td><td>${esc(c.error_message || (c.status === 'sent_ir' ? 'IR transmission acknowledged; AC response unverified' : c.status === 'queued' ? 'Waiting for device acknowledgement' : 'See device status'))}</td></tr>`).join('')
   return `<div class="page">${pageHead('Recent activity', 'History', '')}
     <div class="section-heading"><h2>Command history</h2><small>Latest ${commandHistory.length} requests</small></div><div class="card table-wrap" tabindex="0" role="region" aria-label="Scrollable command history table"><table class="device-table history-table"><thead><tr><th>Requested</th><th>Device</th><th>Action</th><th>Result</th><th>Details</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="empty">No website commands have been recorded.</td></tr>'}</tbody></table></div></div>`
 }
@@ -291,7 +317,7 @@ function renderHistory() {
 function renderAlerts() {
   const attention = devices.filter(d => d.provisioned && deviceStatus(d) === 'offline')
   const deviceRows = attention.map(d => `<div class="alert-detail"><span class="alert-mark">!</span><div><strong>${esc(d.name)} · ${badge(d)}</strong><small>${d.provisioned ? `Last active: ${esc(seen(d))}` : 'Controller has not been provisioned yet.'}</small></div>${isAdmin() ? `<a class="subtle-link" href="#device/${encodeURIComponent(d.id)}">Open →</a>` : ''}</div>`).join('')
-  const commandRows = commandHistory.map(c => `<article class="alert-detail"><span class="alert-mark" aria-hidden="true">${c.status === 'failed' ? '!' : 'i'}</span><div><strong>${esc(deviceName(c.device_id))} · ${esc(c.action.toUpperCase())} · ${commandStatus(c)}</strong>${c.error_message ? `<small>${esc(c.error_message)}</small>` : ''}<small>${esc(formatDate(c.acknowledged_at || c.requested_at))}</small></div>${isAdmin() ? `<a class="subtle-link" href="#device/${encodeURIComponent(c.device_id)}">View device →</a>` : ''}</article>`).join('')
+  const commandRows = commandHistory.map(c => `<article class="alert-detail"><span class="alert-mark" aria-hidden="true">${c.status === 'failed' ? '!' : 'i'}</span><div><strong>${esc(deviceName(c.device_id))} · ${esc(actionLabel(c.action))} · ${commandStatus(c)}</strong>${c.error_message ? `<small>${esc(c.error_message)}</small>` : ''}<small>${esc(formatDate(c.acknowledged_at || c.requested_at))}</small></div>${isAdmin() ? `<a class="subtle-link" href="#device/${encodeURIComponent(c.device_id)}">View device →</a>` : ''}</article>`).join('')
   return `<div class="page">${pageHead('System notices', 'Notifications', '')}
     ${classResponseMessage ? banner('Schedule response saved', esc(classResponseMessage)) : ''}
     ${!isAdmin() ? renderClassCheckins() : ''}
@@ -442,10 +468,10 @@ function renderDetail(id) {
   if (!d) return `<div class="page">${pageHead('Device', 'Device unavailable.', 'This device is not assigned to your verified account.')}<a class="back" href="#devices">← Back to devices</a></div>`
   const online = deviceStatus(d) === 'online'
   const commandExpired = latestCommand?.status === 'queued' && latestCommand.expires_at && Date.parse(latestCommand.expires_at) <= Date.now()
-  const commandText = latestCommand ? `Last request: ${latestCommand.action.toUpperCase()} · ${latestCommand.status === 'sent_ir' ? 'IR sent by ESP32' : commandExpired ? 'Expired before delivery' : latestCommand.status === 'queued' ? 'Waiting for ESP32' : latestCommand.error_message || 'Send failed'}` : 'No website commands recorded.'
+  const commandText = latestCommand ? `Last request: ${actionLabel(latestCommand.action)} · ${latestCommand.status === 'sent_ir' ? 'IR sent by ESP32' : commandExpired ? 'Expired before delivery' : latestCommand.status === 'queued' ? 'Waiting for ESP32' : latestCommand.error_message || 'Send failed'}` : 'No website commands recorded.'
   return `<div class="page"><a class="back" href="#devices">← All devices</a>${pageHead('Device ' + esc(id), esc(d.name), '')}
-    <div class="detail-grid"><section class="card panel" id="live-device-status"><div class="panel-top"><h2>Live device status</h2>${badge(d)}</div><div class="reading-grid"><div class="reading"><label>Temperature</label><b>${hasReading(d) ? temperature(d.temperature_c) : '—'}</b></div><div class="reading"><label>Humidity</label><b>${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</b></div><div class="reading"><label>AC state (estimated)</label><b>${estimatedAcState(d)}</b></div></div><p class="muted">Last active: ${esc(seen(d))}. ${d.last_ir_at ? `Last reported IR: ${esc(d.last_ir_action?.toUpperCase())} at ${esc(new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(d.last_ir_at)))}` : 'No IR transmission report yet.'}</p>
-      ${wakeText(d)}${powerText(d)}<div class="rule"></div><div class="panel-top"><h2>Manual control</h2></div><div class="button-row"><button class="primary manual" data-action="on" ${online ? '' : 'disabled'}>Turn on</button><button class="secondary manual" data-action="off" ${online ? '' : 'disabled'}>Turn off</button></div>${deviceStatus(d) === 'sleeping' ? '<p class="muted">This controller is still using sleep mode. Upload the updated USB firmware to receive schedule changes automatically.</p>' : ''}<p class="status-text" id="command-status">${esc(commandText)}</p></section>
+    <div class="detail-grid"><section class="card panel" id="live-device-status"><div class="panel-top"><h2>Live device status</h2>${badge(d)}</div><div class="reading-grid"><div class="reading"><label>Temperature</label><b>${hasReading(d) ? temperature(d.temperature_c) : '—'}</b></div><div class="reading"><label>Humidity</label><b>${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</b></div><div class="reading"><label>AC state (estimated)</label><b>${estimatedAcState(d)}</b></div></div><p class="muted">Last active: ${esc(seen(d))}. ${d.last_ir_at ? `Last reported IR: ${esc(d.last_ir_action ? actionLabel(d.last_ir_action) : 'Captured test (state unverified)')} at ${esc(new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(d.last_ir_at)))}` : 'No IR transmission report yet.'}</p>
+      ${wakeText(d)}${powerText(d)}<div class="rule"></div><div class="panel-top"><h2>Manual control</h2></div><div class="button-row"><button class="primary manual" data-action="on" ${online ? '' : 'disabled'}>Turn on</button><button class="secondary manual" data-action="off" ${online ? '' : 'disabled'}>Turn off</button></div>${deviceStatus(d) === 'sleeping' ? '<p class="muted">This controller is still using sleep mode. Upload the updated USB firmware to receive schedule changes automatically.</p>' : ''}<p class="status-text" id="command-status">${esc(commandText)}</p>${renderCaptureTests(d)}</section>
       <section class="card panel"><div class="panel-top"><h2>Daily AC timers</h2><span class="tag">Asia/Manila</span></div><div id="today-bookings">${todayBookings(id)}</div><div class="rule"></div><h3>Manual timers</h3><div id="schedule-rows">${scheduleRows() || '<p class="muted">No manual timers set.</p>'}</div><div class="rule"></div><div class="schedule-row"><div class="field"><label for="new-on">New ON time</label><input type="time" id="new-on" value="07:00"></div><div class="field"><label for="new-off">New OFF time</label><input type="time" id="new-off" value="09:00"></div><button class="primary" id="add-schedule" type="button" ${d.provisioned ? '' : 'disabled'}>Add window</button></div><p class="status-text" id="schedule-status"></p></section></div></div>`
 }
 
@@ -555,6 +581,7 @@ function render() {
   document.getElementById('page-loading')?.setAttribute('hidden', '')
   hasUnsavedEdits = false
   attachTableLinks()
+  attachCaptureTests()
   if (selectedId() && devices.some(d => d.id === selectedId())) attachDetail(selectedId())
   if (current === 'settings') { attachAccountDeletion(); attachProfile() }
   const animationsToggle = document.getElementById('animations-toggle')
@@ -672,7 +699,7 @@ async function refresh(force = false) {
     const updated = template.content.querySelector('#live-device-status')
     const panel = document.getElementById('live-device-status')
     if (!panel || !updated) render()
-    else { panel.replaceWith(updated); attachDetail(id) }
+    else { panel.replaceWith(updated); attachDetail(id); attachCaptureTests() }
   }
   } catch (error) {
     loadingError = error?.message || 'The connection failed. Please try again.'

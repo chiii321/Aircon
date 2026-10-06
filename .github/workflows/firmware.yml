@@ -19,3 +19,7 @@ jobs:
         run: |
           cp firmware/stage1_hardware_test/device_credentials.example.h firmware/stage1_hardware_test/device_credentials.h
           arduino-cli compile --fqbn esp32:esp32:esp32 firmware/stage1_hardware_test
+      - name: Compile separate captured-signal test firmware
+        run: |
+          cp firmware/panasonic_capture_web_test/device_credentials.example.h firmware/panasonic_capture_web_test/device_credentials.h
+          arduino-cli compile --fqbn esp32:esp32:esp32 firmware/panasonic_capture_web_test
