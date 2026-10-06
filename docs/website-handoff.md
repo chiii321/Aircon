@@ -29,7 +29,7 @@ The ESP32 runs schedules locally, using its NTP clock and a cached copy of its s
 
 - The browser code and firmware contain only the Supabase project URL and the `sb_publishable_...` key. Both are public by design. Row level security and Supabase Auth protect the data, not the key.
 - Never put an `sb_secret_...` key, a service-role key, a Wi-Fi password, or a device token in browser code, firmware, docs, or anything else that gets committed. Keep local secrets in Git-ignored files such as `.env` and `firmware/stage1_hardware_test/device_credentials.h`.
-- Privileged work runs in the `device-sync` Edge Function, which reads the service-role key from its server environment.
+- Privileged work stays server-side. The `device-sync` Edge Function reads the service-role key from its server environment, and admin actions (approving users, assigning devices) run as `security definer` functions in the database's `private` schema.
 - Each ESP32 authenticates with its own random token. The database stores only the token's SHA-256 hash.
 - Owner and admin email addresses live only in the hosted database's private `allowed_owners` table. Keep them out of migrations and docs.
 
