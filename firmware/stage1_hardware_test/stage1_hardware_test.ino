@@ -16,6 +16,8 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <time.h>
+#include <esp_sleep.h>
+#include "sleep_policy.h"
 #include "device_credentials.h"
 #include "supabase_root_ca.h"
 
@@ -29,7 +31,12 @@ constexpr char kSyncUrl[] = "https://jvdudsbtcjojbgtanbzo.supabase.co/functions/
 constexpr char kPublishableKey[] = "sb_publishable_B4ZZZ62G7PF8sNcKGxWA0A_MKmvhTcF";
 constexpr uint32_t kPollIntervalMs = 5000;
 constexpr uint32_t kReconnectIntervalMs = 10000;
-constexpr uint8_t kMaxSchedules = 12;
+constexpr uint16_t kMaxSchedules = 512;
+#ifndef INUVAIR_DEEP_SLEEP
+#define INUVAIR_DEEP_SLEEP 0  // USB mode: remain connected for automatic schedule updates.
+#endif
+bool cloudSynced = false;
+RTC_DATA_ATTR time_t pendingBoundary = 0;
 
 #ifndef IR_SEND_INVERTED
 #define IR_SEND_INVERTED false  // Set true only for a confirmed active-LOW driver.
@@ -57,9 +64,44 @@ float lastHumidityPct = NAN;
 uint32_t lastPollMs = 0;
 uint32_t lastReconnectMs = 0;
 int lastScheduleMinute = -1;
-struct DailyWindow { uint16_t onMinute; uint16_t offMinute; };
+struct DailyWindow { uint16_t onMinute; uint16_t offMinute; uint8_t weekday; };
 DailyWindow schedules[kMaxSchedules];
-uint8_t scheduleCount = 0;
+uint16_t scheduleCount = 0;
+bool scheduleHeld = false;
+
+uint32_t lastActivityMs = 0;
+bool idlePowerSaving = false;
+
+void noteActivity() {
+  lastActivityMs = millis();
+  if (idlePowerSaving && WiFi.setSleep(false)) {
+    idlePowerSaving = false;
+    Serial.println("INUVAIR active: schedule or command received.");
+  }
+}
+
+void updateIdlePowerSaving() {
+  if (INUVAIR_DEEP_SLEEP) return;
+  bool scheduledUse = false;
+  const time_t now = time(nullptr);
+  if (now >= 1700000000) {
+    struct tm localTime;
+    localtime_r(&now, &localTime);
+    const int seconds = (localTime.tm_hour * 60 + localTime.tm_min) * 60 + localTime.tm_sec;
+    for (uint16_t i = 0; i < scheduleCount; ++i) {
+      if (schedules[i].weekday && schedules[i].weekday != (localTime.tm_wday ? localTime.tm_wday : 7)) continue;
+      if (inuvairScheduleNeedsActive(seconds, schedules[i].onMinute, schedules[i].offMinute, scheduleHeld)) scheduledUse = true;
+    }
+  }
+  if (scheduledUse) lastActivityMs = millis();
+  const bool idle = inuvairIdlePowerSaving(uint32_t(millis() - lastActivityMs), scheduledUse);
+  if (idle != idlePowerSaving && WiFi.setSleep(idle)) {
+    idlePowerSaving = idle;
+    Serial.println(idle ? "INUVAIR idle: Wi-Fi modem sleep, still reachable." : "INUVAIR active: scheduled window.");
+  }
+}
+
+
 
 // Latest ELECTRA_AC ON/OFF captures supplied by the user (104-bit frames, 211 timings each).
 // Raw replay is used so the captured timing pattern is preserved exactly.
@@ -135,6 +177,7 @@ void printDht() {
 }
 
 bool sendAuxState(bool turnOn) {
+  noteActivity();
   if (capturePending) {
     Serial.println("Capture is armed; wait for the remote or the 60-second timeout before sending.");
     return false;
@@ -211,7 +254,9 @@ void loadSchedules(JsonArrayConst items) {
     const int on = parseMinute(item["on_time"].as<String>());
     const int off = parseMinute(item["off_time"].as<String>());
     if (on < 0 || off <= on) continue;
-    schedules[scheduleCount++] = {uint16_t(on), uint16_t(off)};
+    const int weekday = item["weekday"] | 0;
+    if (weekday < 0 || weekday > 7) continue;
+    schedules[scheduleCount++] = {uint16_t(on), uint16_t(off), uint8_t(weekday)};
   }
 }
 
@@ -247,6 +292,10 @@ void acknowledgeCommand(uint32_t id, bool sent) {
 void pollCloud() {
   JsonDocument request;
   request["type"] = "poll";
+  request["power_mode"] = idlePowerSaving ? "modem_sleep" : "active";
+  const int32_t wifiRssi = WiFi.RSSI();
+  if (WiFi.status() == WL_CONNECTED && wifiRssi >= -127 && wifiRssi < 0) request["wifi_rssi"] = wifiRssi;
+  else request["wifi_rssi"] = nullptr;
   if (isnan(lastTemperatureC)) request["temperature_c"] = nullptr;
   else request["temperature_c"] = lastTemperatureC;
   if (isnan(lastHumidityPct)) request["humidity_pct"] = nullptr;
@@ -260,12 +309,21 @@ void pollCloud() {
     Serial.println("Cloud JSON could not be parsed.");
     return;
   }
-  JsonArrayConst incoming = data["schedules"].as<JsonArrayConst>();
+  cloudSynced = true;
+  JsonArrayConst incoming = data["weekly_schedules"].is<JsonArrayConst>() ? data["weekly_schedules"].as<JsonArrayConst>() : data["schedules"].as<JsonArrayConst>();
   if (!incoming.isNull()) {
     String scheduleJson;
     serializeJson(incoming, scheduleJson);
-    if (scheduleJson != settings.getString("schedules", "[]")) settings.putString("schedules", scheduleJson);
+    if (scheduleJson != settings.getString("schedules", "[]")) {
+      settings.putString("schedules", scheduleJson);
+      noteActivity();
+    }
     loadSchedules(incoming);
+  }
+  if (!data["schedule_hold"].isNull()) {
+    if (scheduleHeld != data["schedule_hold"].as<bool>()) noteActivity();
+    scheduleHeld = data["schedule_hold"].as<bool>();
+    settings.putBool("scheduleHold", scheduleHeld);
   }
   JsonObjectConst command = data["command"].as<JsonObjectConst>();
   if (!command.isNull()) {
@@ -275,6 +333,13 @@ void pollCloud() {
       if (settings.getUInt("lastCommand", 0) == id) {
         acknowledgeCommand(id, true);
       } else {
+        const uint32_t expiresAt = command["expires_at_epoch"].as<uint32_t>();
+        const time_t now = time(nullptr);
+        if (expiresAt && (now < 1700000000 || now >= expiresAt)) {
+          Serial.println("Manual command expired or clock invalid; IR skipped.");
+          acknowledgeCommand(id, false);
+          return;
+        }
         const bool sent = sendAuxState(action == "on");
         if (sent) settings.putUInt("lastCommand", id);
         acknowledgeCommand(id, sent);
@@ -286,17 +351,26 @@ void pollCloud() {
 void runDailySchedule() {
   const time_t now = time(nullptr);
   if (now < 1700000000) return; // No valid NTP time yet.
+  // A timer wake can reach the boundary while Wi-Fi is reconnecting.
+  const time_t eventTime = pendingBoundary && now >= pendingBoundary && now - pendingBoundary <= 120
+      ? pendingBoundary : now;
+  if (pendingBoundary && now >= pendingBoundary) pendingBoundary = 0;
   struct tm localTime;
-  localtime_r(&now, &localTime);
-  const int minute = localTime.tm_hour * 60 + localTime.tm_min;
+  localtime_r(&eventTime, &localTime);  const int minute = localTime.tm_hour * 60 + localTime.tm_min;
   if (minute == lastScheduleMinute) return;
   lastScheduleMinute = minute;
   const uint32_t eventKey = uint32_t(localTime.tm_year + 1900) * 1000000UL
       + uint32_t(localTime.tm_yday + 1) * 1440UL + minute;
   if (settings.getUInt("lastEvent", 0) == eventKey) return;
-  for (uint8_t i = 0; i < scheduleCount; ++i) {
+  for (uint16_t i = 0; i < scheduleCount; ++i) {
+      if (schedules[i].weekday && schedules[i].weekday != (localTime.tm_wday ? localTime.tm_wday : 7)) continue;
     if (schedules[i].onMinute == minute || schedules[i].offMinute == minute) {
       const bool turnOn = schedules[i].onMinute == minute;
+      if (turnOn && scheduleHeld) {
+        settings.putUInt("lastEvent", eventKey);
+        Serial.println("Schedule ON skipped because class schedule is paused.");
+        break;
+      }
       if (sendAuxState(turnOn)) {
         settings.putUInt("lastEvent", eventKey);
         Serial.println("Daily schedule boundary sent. Physical AC response remains unverified.");
@@ -312,6 +386,54 @@ void runDailySchedule() {
       break;
     }
   }
+}
+
+void sleepWhenReady() {
+  if (!INUVAIR_DEEP_SLEEP || capturePending || capturedRaw != nullptr) return;
+  const time_t now = time(nullptr);
+  const bool validClock = now >= 1700000000;
+  // Bound connection and clock acquisition; cached schedules still work offline.
+  if ((!cloudSynced || !validClock) && millis() < 30000) return;
+  // Leave a brief online window for dashboard refresh and manual commands.
+  if (cloudSynced && validClock && millis() < 20000) return;
+  uint32_t seconds = cloudSynced && validClock ? 21600 : 120;
+  time_t nextBoundary = 0;
+  if (validClock) {
+    struct tm localTime;
+    localtime_r(&now, &localTime);
+    const int secondOfDay = (localTime.tm_hour * 60 + localTime.tm_min) * 60 + localTime.tm_sec;
+    int nearest = 86400;
+    for (uint16_t i = 0; i < scheduleCount; ++i) {
+      if (schedules[i].weekday && schedules[i].weekday != (localTime.tm_wday ? localTime.tm_wday : 7)) continue;
+      nearest = min(nearest, inuvairBoundaryDelay(secondOfDay, schedules[i].onMinute));
+      nearest = min(nearest, inuvairBoundaryDelay(secondOfDay, schedules[i].offMinute));
+      if (secondOfDay >= schedules[i].onMinute * 60 && secondOfDay < schedules[i].offMinute * 60) seconds = min(seconds, uint32_t(60));
+    }
+    // Stay awake for a nearby boundary, without a blocking delay loop.
+    if (nearest <= 45) return;
+    const uint32_t earlyWake = uint32_t(nearest - 30);
+    if (earlyWake <= seconds) {
+      seconds = earlyWake;
+      nextBoundary = now + nearest;
+    }
+  }
+  pendingBoundary = nextBoundary;
+  if (cloudSynced && WiFi.status() == WL_CONNECTED) {
+    JsonDocument report;
+    report["type"] = "sleep";
+    report["sleep_seconds"] = seconds;
+    String payload, response;
+    serializeJson(report, payload);
+    postCloud(payload, response);
+  }
+  Serial.printf("INUVAIR sleeping for %lu seconds. USB power; solar supply pending.\n", static_cast<unsigned long>(seconds));
+  irReceiver.disableIRIn();
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  digitalWrite(IR_SEND_PIN, IR_SEND_INVERTED ? HIGH : LOW);
+  esp_sleep_enable_timer_wakeup(uint64_t(seconds) * 1000000ULL);
+  Serial.flush();
+  esp_deep_sleep_start();
 }
 
 void printStatus() {
@@ -330,6 +452,7 @@ void printStatus() {
   Serial.println("Cloud polling enabled. IR transmission is not proof of physical AC state.");
 }
 void handleCommand(const String& command) {
+  if (command.length()) noteActivity();
   if (command == "status") {
     printStatus();
   } else if (command == "dht") {
@@ -355,11 +478,13 @@ void setup() {
   irReceiver.enableIRIn();
   irSender.begin();
   settings.begin("aircon", false);
+  scheduleHeld = settings.getBool("scheduleHold", false);
   JsonDocument cached;
   if (!deserializeJson(cached, settings.getString("schedules", "[]"))) {
     loadSchedules(cached.as<JsonArrayConst>());
   }
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);  // Enable modem sleep only after extended inactivity.
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   configTime(8 * 3600, 0, "pool.ntp.org", "time.google.com");
 
@@ -434,7 +559,9 @@ void loop() {
     lastPollMs = millis();
     pollCloud();
   }
-  if (!capturePending) runDailySchedule();
+  if (!capturePending && (!INUVAIR_DEEP_SLEEP || cloudSynced || millis() >= 30000)) runDailySchedule();
+  if (!capturePending) updateIdlePowerSaving();
+  if (!capturePending && millis() >= 2000) sleepWhenReady();
 
   delay(5);
 }

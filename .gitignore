@@ -32,10 +32,20 @@ wifi_credentials.h
 service-account*.json
 
 # Local device provisioning
+device_credentials.h
+devices/device-token-registration.local.sql
 firmware/stage1_hardware_test/device_credentials.h
 supabase/*.local
 .vercel/
 
+.vercel
+.env*
+
 # Local logs and helper scripts that may print or load secrets
 *.log
 setup-supabase-env.ps1
+
+# Test tooling and generated local output
+node_modules/
+outputs/
+.wrangler/

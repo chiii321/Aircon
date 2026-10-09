@@ -40,6 +40,8 @@ Initially test 10–20 cm from the AC's IR sensor. Phone-camera visibility depen
 
 For upload and first connection, start with [live setup](docs/live-setup.md). The [website handoff](docs/website-handoff.md) covers the site's layout and secret-handling rules.
 
+See [controller architecture](docs/architecture.md) for trust boundaries, command expiry, database schedule enforcement, checks, and the rollout order for the prepared reliability changes.
+
 ```text
 Website
   ↓
@@ -65,6 +67,8 @@ Aircon/
 ├── README.md
 ├── vercel.json                Serves web/ on Vercel
 ├── .github/workflows/         Firmware compile check
+├── .gitignore
+├── devices/             # Panasonic sketches: 01/01.ino through 11/11.ino
 ├── firmware/
 │   └── stage1_hardware_test/  Maintained ESP32 sketch, CA cert, credentials template
 ├── supabase/
@@ -80,7 +84,7 @@ Aircon/
 
 `firmware/stage1_hardware_test/stage1_hardware_test.ino` is the AUX test sketch. It replays captured ELECTRA_AC frames on GPIO 25 and reads the DHT22 on GPIO 32. It still contains `capture` and `replay` commands for an IR receiver on GPIO 27, written before the receiver was removed.
 
-As of 2026-10-06, the per-device Panasonic sketches (`devices/01` to `devices/11`) are on the `codex/inuvair-vercel-release` branch and not yet merged into `main`.
+The `devices/01` through `devices/11` folders each contain a copy of the Panasonic-values sketch with the matching device ID, required headers, and a credentials example. Open the matching `.ino` file in Arduino IDE for each controller. Fill in that folder's local, Git-ignored `device_credentials.h` with Wi-Fi settings and the unique token provisioned for that ID before uploading. To change Wi-Fi for all eleven devices, run `devices/set-wifi.cmd` or the PowerShell command in [device Wi-Fi setup](docs/device-wifi-setup.md), then recompile and upload each matching sketch. Firmware uses station mode only, with no setup hotspot. Never commit real credentials. Device online status still requires successful cloud synchronization.
 
 ## Required Arduino libraries
 
@@ -97,6 +101,8 @@ The sketch uses Wi-Fi, HTTPS polling, NTP, and locally cached daily schedule win
 
 ## Run the test sketch
 
+For current Panasonic operation, open the matching `devices/XX/XX.ino`, wire the two transmitter branches as described above. Serial commands are `status`, `dht`, `on`, `off`, and `testir`. Both LEDs share GPIO 25; test the saved signals on each AC separately before testing both together. Set `INUVAIR_DEEP_SLEEP=0` for continuous bench diagnostics, then restore the intended sleep setting. The steps below are for the older AUX test sketch.
+
 1. Wire the board as shown in [docs/wiring.md](docs/wiring.md). Follow [live setup](docs/live-setup.md) to fill the ignored local Wi-Fi credentials before upload.
 2. Install the required Arduino libraries.
 3. Open `firmware/stage1_hardware_test/stage1_hardware_test.ino` in Arduino IDE.
@@ -107,7 +113,7 @@ The sketch uses Wi-Fi, HTTPS polling, NTP, and locally cached daily schedule win
 
 Serial commands for the current hardware: `status`, `dht`, `on`, `off`, and `testir`. `testir` sends repeated 38 kHz bursts for an optical emission check; a camera may filter them. The sketch also accepts `capture` and `replay`, but those need an IR receiver on GPIO 27, which the current hardware doesn't have.
 
-Only `firmware/stage1_hardware_test/stage1_hardware_test.ino` is maintained.
+The current Panasonic source is `firmware/stage1_hardware_test_panasonic_values_only/stage1_hardware_test_panasonic_values_only.ino`, with per-ID copies in `devices/01` through `devices/11`. The older AUX capture sketch is retained at `firmware/stage1_hardware_test/stage1_hardware_test.ino`.
 
 ## Power
 
@@ -126,6 +132,8 @@ arduino-cli compile --fqbn esp32:esp32:esp32 firmware/stage1_hardware_test
 ```
 
 The firmware compile checks integration; physical IR and network behavior require a device test.
+
+Website checks use Playwright with synthetic data and send no real commands: run `npm --prefix tests install`, `npm --prefix tests run browsers` once, then `npm --prefix tests test`. See [website checks](docs/website-checks.md).
 
 ## Working together through GitHub
 
@@ -162,3 +170,4 @@ Pull with `git pull --ff-only` before editing/uploading. Use small branches/PRs 
 - Does replay through the two-LED transistor driver reliably reproduce the captured ON/OFF frames on both ACs?
 - Can the 2N2222A, its 1 kΩ base resistor, and the 5 V supply drive both LEDs together with reliable range?
 - What energy-meter hardware and electrical isolation approach will be selected for the future energy-monitoring phase?
+

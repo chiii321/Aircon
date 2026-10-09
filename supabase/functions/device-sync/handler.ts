@@ -1,0 +1,160 @@
+import { createClient } from 'npm:@supabase/supabase-js@2.95.0'
+
+const url = Deno.env.get('SUPABASE_URL')!
+const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const db = createClient(url, serviceKey, { auth: { persistSession: false } })
+
+function reply(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+  })
+}
+
+async function sha256(value: string) {
+  const bytes = new TextEncoder().encode(value)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')
+}
+
+function sameHash(a: string, b: string) {
+  if (a.length !== 64 || b.length !== 64) return false
+  let difference = 0
+  for (let i = 0; i < 64; i++) difference |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return difference === 0
+}
+
+function weeklyWindows(daily: { on_time: string; off_time: string }[], bookings: { weekday: number; start_time: string; end_time: string }[]) {
+  const windows: { weekday: number; on_time: string; off_time: string }[] = []
+  for (let weekday = 1; weekday <= 7; weekday++) {
+    const slots = [...daily.map(slot => ({ start: slot.on_time.slice(0, 5), end: slot.off_time.slice(0, 5) })), ...bookings.filter(slot => slot.weekday === weekday).map(slot => ({ start: slot.start_time.slice(0, 5), end: slot.end_time.slice(0, 5) }))].sort((a, b) => a.start.localeCompare(b.start))
+    for (const slot of slots) {
+      const previous = windows.at(-1)
+      if (previous?.weekday === weekday && slot.start <= previous.off_time) previous.off_time = slot.end > previous.off_time ? slot.end : previous.off_time
+      else windows.push({ weekday, on_time: slot.start, off_time: slot.end })
+    }
+  }
+  return windows
+}
+
+export async function handleDeviceSync(request: Request) {
+  if (request.method !== 'POST') return reply({ error: 'POST required' }, 405)
+  const deviceId = request.headers.get('x-device-id') ?? ''
+  const token = request.headers.get('x-device-token') ?? ''
+  if (!/^\d{2}$/.test(deviceId) || !/^[0-9a-f]{64}$/.test(token)) return reply({ error: 'Unauthorized' }, 401)
+
+  const { data: credential, error: credentialError } = await db.from('device_tokens')
+    .select('token_sha256').eq('device_id', deviceId).maybeSingle()
+  if (credentialError) return reply({ error: 'Credential lookup failed' }, 500)
+  if (!credential || !sameHash(credential.token_sha256, await sha256(token))) return reply({ error: 'Unauthorized' }, 401)
+
+  let body: Record<string, unknown>
+  try {
+    const parsed = await request.json()
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return reply({ error: 'JSON object required' }, 400)
+    body = parsed
+  } catch { return reply({ error: 'Invalid JSON' }, 400) }
+  if (body.type === 'sleep') {
+    const seconds = body.sleep_seconds
+    if (!Number.isSafeInteger(seconds) || Number(seconds) < 1 || Number(seconds) > 21600) return reply({ error: 'Invalid sleep duration' }, 400)
+    const now = Date.now()
+    const { error } = await db.from('devices').update({
+      last_seen_at: new Date(now).toISOString(),
+      sleep_until: new Date(now + Number(seconds) * 1000).toISOString(),
+      power_mode: null,
+    }).eq('id', deviceId)
+    if (error) return reply({ error: 'Sleep report failed' }, 500)
+    return reply({ recorded: true })
+  }
+  if (body.type === 'poll') {
+    const captureTestVersion = body.capture_test_version ?? null
+    if (captureTestVersion !== null && captureTestVersion !== 1) return reply({ error: 'Invalid capture test version' }, 400)
+    const powerMode = body.power_mode ?? null
+    if (powerMode !== null && powerMode !== 'active' && powerMode !== 'modem_sleep') return reply({ error: 'Invalid power mode' }, 400)
+    const wifiRssi = body.wifi_rssi ?? null
+    if (wifiRssi !== null && (typeof wifiRssi !== 'number' || !Number.isInteger(wifiRssi) || wifiRssi < -127 || wifiRssi >= 0)) return reply({ error: 'Invalid Wi-Fi RSSI' }, 400)
+    const temperature = body.temperature_c
+    const humidity = body.humidity_pct
+    const readingsValid = (temperature === null || (typeof temperature === 'number' && temperature >= -40 && temperature <= 80))
+      && (humidity === null || (typeof humidity === 'number' && humidity >= 0 && humidity <= 100))
+    if (!readingsValid) return reply({ error: 'Invalid sensor values' }, 400)
+    const { error: heartbeatError } = await db.from('devices').update({
+      last_seen_at: new Date().toISOString(),
+      sleep_until: null,
+      power_mode: powerMode,
+      wifi_rssi: wifiRssi,
+      temperature_c: temperature,
+      humidity_pct: humidity,
+      capture_test_version: captureTestVersion,
+    }).eq('id', deviceId)
+    if (heartbeatError) return reply({ error: 'Heartbeat failed' }, 500)
+    if (temperature !== null) {
+      const { error: readingError } = await db.from('device_temperature_readings').insert({ device_id: deviceId, temperature_c: temperature })
+      if (readingError) return reply({ error: 'Temperature history write failed' }, 500)
+    }
+    await db.from('device_temperature_readings').delete().eq('device_id', deviceId).lt('recorded_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+    const now = new Date().toISOString()
+    const { error: expiryError } = await db.from('device_commands').update({
+      status: 'failed', error_message: 'Command expired before delivery',
+    }).eq('device_id', deviceId).eq('status', 'queued').lte('expires_at', now)
+    if (expiryError) return reply({ error: 'Command expiry failed' }, 500)
+    const [{ data: commands, error: commandsError }, { data: device, error: deviceError }, { data: schedules, error: schedulesError }, { data: bookings, error: bookingsError }] = await Promise.all([
+      db.from('device_commands').select('id,action,expires_at').eq('device_id', deviceId).eq('status', 'queued').in('action', captureTestVersion === 1 ? ['on', 'off', 'test_temp_down', 'test_temp_up', 'test_mode', 'test_powerful'] : ['on', 'off']).gt('expires_at', now).order('id').limit(1),
+      db.from('devices').select('schedule_hold').eq('id', deviceId).single(),
+      db.from('device_schedules').select('id,on_time,off_time,enabled').eq('device_id', deviceId).eq('enabled', true).order('on_time'),
+      db.from('weekly_room_assignments').select('weekday,start_time,end_time').eq('device_id', deviceId).order('weekday').order('start_time').limit(5000),
+    ])
+    if (commandsError || deviceError || schedulesError || bookingsError) return reply({ error: 'Sync failed' }, 500)
+    const weeklySchedules = weeklyWindows(schedules ?? [], bookings ?? [])
+    if (weeklySchedules.length > 512) return reply({ error: 'Too many schedule windows' }, 500)
+    const localNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }))
+    const minute = localNow.getHours() * 60 + localNow.getMinutes()
+    const weekday = localNow.getDay() || 7
+    const inScheduledClass = weeklySchedules.some(schedule => {
+      if (schedule.weekday !== weekday) return false
+      const [onHour, onMinute] = String(schedule.on_time).slice(0, 5).split(':').map(Number)
+      const [offHour, offMinute] = String(schedule.off_time).slice(0, 5).split(':').map(Number)
+      return minute >= onHour * 60 + onMinute && minute < offHour * 60 + offMinute
+    })
+    if (inScheduledClass && !device.schedule_hold && temperature !== null) {
+      const since = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+      const localParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+      const classDayStart = new Date(`${localParts}T00:00:00+08:00`).toISOString()
+      const [{ data: readings, error: readingsError }, { data: recentCheckins, error: checkinsError }] = await Promise.all([
+        db.from('device_temperature_readings').select('temperature_c,recorded_at').eq('device_id', deviceId).gte('recorded_at', since).order('recorded_at').limit(200),
+        db.from('class_checkins').select('id').eq('device_id', deviceId).gte('detected_at', classDayStart).limit(1),
+      ])
+      if (readingsError || checkinsError) return reply({ error: 'Class check-in evaluation failed' }, 500)
+      const history = readings ?? []
+      const first = history[0]
+      const last = history.at(-1)
+      const values = history.map(reading => Number(reading.temperature_c))
+      if (!recentCheckins?.length && first && last && Date.now() - Date.parse(first.recorded_at) >= 10 * 60 * 1000
+        && Math.max(...values) - Math.min(...values) < 0.5) {
+        const { error: checkinError } = await db.from('class_checkins').insert({
+          device_id: deviceId, temperature_min_c: Math.min(...values), temperature_max_c: Math.max(...values),
+        })
+        if (checkinError) return reply({ error: 'Class check-in creation failed' }, 500)
+      }
+    }
+    const command = commands?.[0]
+    return reply({ command: command ? { ...command, expires_at_epoch: Math.floor(Date.parse(command.expires_at) / 1000) } : null, schedules: schedules ?? [], weekly_schedules: weeklySchedules, schedule_hold: device.schedule_hold, server_time: new Date().toISOString() })
+  }
+  if (body.type === 'ack') {
+    const id = body.command_id
+    const status = body.status
+    if (!Number.isSafeInteger(id) || Number(id) <= 0 || (status !== 'sent_ir' && status !== 'failed')) return reply({ error: 'Invalid acknowledgement' }, 400)
+    const { data, error } = await db.rpc('acknowledge_device_command', {
+      p_device_id: deviceId, p_command_id: id, p_status: status,
+    })
+    if (error) return reply({ error: 'Acknowledgement failed' }, 500)
+    return reply({ acknowledged: Boolean(data) })
+  }
+  if (body.type === 'schedule_event') {
+    if (body.action !== 'on' && body.action !== 'off') return reply({ error: 'Invalid action' }, 400)
+    const { error } = await db.from('devices').update({ last_ir_action: body.action, last_ir_at: new Date().toISOString() }).eq('id', deviceId)
+    if (error) return reply({ error: 'Event update failed' }, 500)
+    return reply({ recorded: true })
+  }
+  return reply({ error: 'Unknown request type' }, 400)
+}
