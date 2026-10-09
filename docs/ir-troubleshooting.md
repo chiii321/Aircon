@@ -18,59 +18,59 @@ unresolved ON/OFF labeling conflict. Replay still requires physical verification
 
 ## Test one link at a time
 
-1. Confirm the original remote operates the AC. Record exact AC and remote model
-   numbers. The current transmitter is a temporary harvested IR LED driven by a
-   2N2222A, as shown in [wiring.md](wiring.md). Its wavelength and ratings are
-   unconfirmed. When the planned 940 nm LED arrives, size its series resistor from
-   the LED datasheet and the measured supply voltage.
-2. At 115200 baud, send `testir` and compare through a phone camera with the
-   original remote. A camera that blocks 940 nm may show neither; no visible
-   camera flash does not establish a failed transmitter. Then try `on` and `off` separately while
-   aiming at the AC receiver from 10–20 cm initially. Observe the AC beep/display/power response;
+1. Confirm the original remote operates each AC. Record the exact AC and remote
+   model numbers. Check the transmitter wiring against [wiring.md](wiring.md):
+   GPIO 25 → 1kΩ → 2N2222A base, 10kΩ base pull-down to GND, emitter to GND, both
+   LED cathodes to the collector, and each LED anode to 5V/VIN through its own
+   100Ω resistor.
+2. At 115200 baud, send `testir` and look at both LEDs through a phone camera,
+   comparing with the original remote. A camera that filters IR may show neither,
+   so no visible flash doesn't prove a dead LED. If only one LED lights, check
+   that LED's polarity, its 100Ω resistor, and its cathode connection to the
+   collector.
+3. Try `on` and `off` separately, aiming each LED at its AC's IR sensor from
+   10–20 cm at first. Watch for the AC's beep, display, or power change;
    compressor startup can be delayed. Respect the AC manual's restart interval.
-3. If neither works, type `capture`. DHT reads and local sends pause for at most
-   60 seconds. Aim the original remote at GPIO 27's receiver and press once.
-   Wait for `Raw capture saved in RAM`. Save the entire printed decode/raw output.
-   Overflowed and marked-repeat frames are not saved; keep other remotes away.
-4. To test an ON capture, first restore the AC to OFF with the original remote.
-   Later remote traffic does not replace the explicitly saved capture. Aim the
-   ESP32 transmitter at the AC and type `replay`. For an OFF capture, start with
-   the AC ON instead. Repeat the procedure for the other command.
-5. If raw replay works but `on`/`off` does not, commit the fresh state AND raw
-   timings plus remote settings under `docs/ir-captures/`. The saved protocol,
-   frame contents, or library timing is then the next item to investigate.
-6. If raw replay also fails, verify LED polarity, exact 2N2222A pinout, common
-   ground, 1kΩ base resistor, datasheet-sized LED resistor, and board 5V/VIN rail.
-   Compare with a camera or detector known to show 940 nm; many phone cameras
-   filter it and show nothing.
-   A second receiver/ESP32 or oscilloscope gives better evidence. The sender's
-   own receiver is deliberately disabled during sending, so its silence is expected.
+4. If neither AC responds, verify LED polarity, the exact 2N2222A pinout, common
+   ground, the 1kΩ and 10kΩ base resistors, and that the MT3608 supplies 5.00 V
+   at the ESP32's 5V/VIN pin. An oscilloscope on the collector, or a second
+   board with an IR receiver, gives better evidence than a camera.
+5. If one AC responds and the other doesn't, swap the two LEDs' aim. That tells
+   you whether the problem follows the LED or the AC. Both ACs must accept the
+   same command, because both LEDs always send the same frame.
 
-Raw replay reproduces recorded mark/space durations at **38 kHz**. A demodulating
-receiver does not measure the original carrier, and a capture may omit a later
-frame separated by more than the 50 ms capture timeout. Raw replay is a diagnostic,
-not proof of a complete remote transaction. Saved raw data is RAM-only, is cleared
-by a new `capture`, and is lost at reboot; no automatic replay occurs.
+Raw replay sends recorded mark/space durations at **38 kHz**. The receiver that
+made the captures couldn't measure the original carrier frequency, so 38 kHz is
+an assumption.
+
+### Taking new captures
+
+The current hardware has no IR receiver. To record a new remote code, temporarily
+connect an IR receiver to GPIO 27 (SIGNAL), 3.3V, and GND. Then use the test
+sketch's `capture` command, press the remote button once, and save the complete
+printed output under `docs/ir-captures/`. `replay` sends the most recent capture.
+Captures live in RAM only and are lost at reboot. Disconnect the receiver again
+afterwards.
 
 `IR_SEND_INVERTED` defaults to false. Only set it true and rebuild after confirming
-an active-LOW transmitter driver. Do not randomly change pin polarity or supply
-voltage. A bare IR LED needs current limiting and an appropriate driver; do not
-drive a high-current LED directly from a GPIO or feed 5V into ESP32 GPIO/3V3.
+an active-LOW transmitter driver. Don't randomly change pin polarity or supply
+voltage. Never drive an IR LED directly from a GPIO or feed 5V into an ESP32 GPIO
+or the 3V3 pin.
 
 ## Record the result on GitHub
 
 Use one small branch/PR per change; pull before editing. CI compiles the firmware,
-but a green check does not verify the AC. In a capture
-record or PR, include this filled-in template (no network credentials):
+but a green check does not verify the AC. In a test record or PR, include this
+filled-in template (no network credentials):
 
 ```text
 Commit / printed build timestamp:
 Sketch and ESP32 board/core/library versions:
-AC / remote / transmitter / receiver model or markings:
+AC / remote / IR LED / transistor model or markings:
 Power source and wiring checked:
 Original remote works:
-Serial on/off AC response:
-Raw replay ON/OFF response:
-Distance / orientation:
-Complete Serial capture output:
+Serial on/off response, AC 1:
+Serial on/off response, AC 2:
+Distance / orientation of each LED:
+Complete Serial output:
 ```

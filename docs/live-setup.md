@@ -16,7 +16,7 @@ The current firmware ID is `01`. The database has slots `01` through `11`; only 
 
 ## Before uploading ESP32 01
 
-1. Remove the prototype's physical ON/OFF buttons. The sketch no longer reads GPIO 33 or 26. Keep DHT22, IR receiver, and IR transmitter wiring as documented in [wiring.md](wiring.md).
+1. Wire the DHT22 and the two-LED IR transmitter as documented in [wiring.md](wiring.md). The IR receiver and physical buttons are no longer used; leave GPIO 26, 27, and 33 unconnected.
 2. Open the local, Git-ignored `firmware/stage1_hardware_test/device_credentials.h`. If it is absent on a fresh checkout, copy `device_credentials.example.h` and provision a unique token before uploading. Replace `YOUR_WIFI_NAME` and `YOUR_WIFI_PASSWORD` with the actual **2.4 GHz** Wi-Fi credentials. If a token was already provisioned for this board, keep that `DEVICE_TOKEN` unchanged. Do not share or commit this file.
 3. Install ESP32 core 2.0.17 and the library versions listed in [README.md](../README.md), including ArduinoJson 7.4.3. Compile and upload `firmware/stage1_hardware_test/stage1_hardware_test.ino`.
 4. Open Serial Monitor at 115200 baud and send `status`. Confirm `Device ID: 01` and `Wi-Fi: connected`. The website should show device 01 online after a successful HTTPS poll. If it remains offline, check Serial for HTTP errors, Wi-Fi association, and clock synchronization.
