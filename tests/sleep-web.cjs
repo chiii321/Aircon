@@ -1,8 +1,8 @@
 // Synthetic device reports only; no real account or device writes.
 const assert = require('node:assert/strict')
 const { chromium } = require('playwright')
-const base = process.env.BASE_URL || 'http://127.0.0.1:8765'
-assert(['localhost', '127.0.0.1'].includes(new URL(base).hostname))
+const serveWeb = require('./serve-web.cjs')
+if (process.env.BASE_URL) assert(['localhost', '127.0.0.1'].includes(new URL(process.env.BASE_URL).hostname))
 const mock = `
 const session = {user:{id:'test-admin',email:'admin@example.test'}};
 window.testMode = 'sleeping'; window.testWrites = [];
@@ -24,7 +24,9 @@ export function createClient() { return {
 };}
 `
 ;(async () => {
-  const browser = await chromium.launch({executablePath:process.env.CHROME_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true})
+  const server = process.env.BASE_URL ? null : await serveWeb()
+  const base = process.env.BASE_URL || server.base
+  const browser = await chromium.launch({executablePath:process.env.CHROME_PATH || undefined,headless:true})
   try {
     const context = await browser.newContext()
     await context.route('**/*', route => {
@@ -42,8 +44,8 @@ export function createClient() { return {
       await page.evaluate(theme => { localStorage.setItem('inuvair-theme',theme) },theme)
       await page.reload()
       await page.getByText('Sleeping',{exact:true}).waitFor()
-      assert.equal(await page.getByRole('button',{name:'Turn on',exact:true}).isDisabled(),true)
-      assert.equal(await page.getByRole('button',{name:'Turn off',exact:true}).isDisabled(),true)
+      assert.equal(await page.getByRole('button',{name:'Power on',exact:true}).isDisabled(),true)
+      assert.equal(await page.getByRole('button',{name:'Power off',exact:true}).isDisabled(),true)
       await page.getByText('28.6 °C',{exact:true}).waitFor()
       await page.getByText(/Last reported readings · expected wake:/).waitFor()
       assert.equal(await page.locator('.reading').filter({has:page.getByText('AC state (estimated)',{exact:true})}).locator('b').innerText(),'Unknown')
@@ -57,11 +59,10 @@ export function createClient() { return {
       if (process.env.SHOTS_DIR) await page.screenshot({path:process.env.SHOTS_DIR+'/sleep-settings-'+theme+'-'+width+'.png',fullPage:true})
       await page.evaluate(()=>{window.testMode='idle';window.testIr='on';location.hash='device/01'})
       await page.getByText('Idle sleep · online',{exact:true}).waitFor()
-      await page.getByText(/Wi-Fi modem sleep is active/).waitFor()
       await page.getByText('28.6 °C',{exact:true}).waitFor()
       assert.equal(await page.locator('.reading').filter({has:page.getByText('AC state (estimated)',{exact:true})}).locator('b').innerText(),'ON')
-      assert.equal(await page.getByRole('button',{name:'Turn on',exact:true}).isDisabled(),false)
-      assert.equal(await page.getByRole('button',{name:'Turn off',exact:true}).isDisabled(),false)
+      assert.equal(await page.getByRole('button',{name:'Power on',exact:true}).isDisabled(),false)
+      assert.equal(await page.getByRole('button',{name:'Power off',exact:true}).isDisabled(),false)
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth > innerWidth),false)
       if (process.env.SHOTS_DIR) await page.screenshot({path:process.env.SHOTS_DIR+'/idle-status-'+theme+'-'+width+'.png',fullPage:true})
       await page.evaluate(()=>location.hash='overview')
@@ -75,22 +76,20 @@ export function createClient() { return {
     await page.evaluate(()=>{window.testMode='unknown';location.hash='overview'})
     await page.evaluate(()=>location.hash='device/01')
     await page.getByText('Online',{exact:true}).waitFor()
-    await page.getByText(/Power mode not reported/).waitFor()
-    assert.equal(await page.getByRole('button',{name:'Turn on',exact:true}).isDisabled(),false)
+    assert.equal(await page.getByRole('button',{name:'Power on',exact:true}).isDisabled(),false)
     await page.evaluate(()=>{window.testMode='idle';location.hash='overview'})
     await page.evaluate(()=>location.hash='device/01')
     await page.getByText('Idle sleep · online',{exact:true}).waitFor()
     await page.locator('#new-on').fill('23:21')
     await page.locator('#new-off').fill('23:25')
     await page.getByRole('button',{name:'Add window',exact:true}).click()
-    await page.getByText('Schedule saved. The ESP32 will sync it on its next poll.',{exact:true}).waitFor()
+    await page.getByText('Schedule saved.',{exact:true}).waitFor()
     const saved = await page.evaluate(()=>window.testWrites.find(write=>write.table==='device_schedules'))
     assert.equal(saved.value.on_time,'23:21')
     assert.equal(saved.value.off_time,'23:25')
     await page.evaluate(()=>{window.testMode='online';location.hash='overview'})
     await page.evaluate(()=>location.hash='device/01')
     await page.getByText('Online',{exact:true}).waitFor()
-    await page.getByText(/Active mode · idle sleep starts/).waitFor()
     for (const status of ['queued','failed']) {
       await page.evaluate(status=>{
         window.testIr='on';window.testCommand={id:1,device_id:'01',action:'off',status,error_message:status==='failed' ? 'Command expired before delivery' : null,expires_at:new Date(Date.now()+60000).toISOString()};location.hash='overview'
@@ -107,5 +106,5 @@ export function createClient() { return {
     assert.equal(await page.getByRole('heading',{name:'INUVAIR power and sleep'}).count(),0)
     assert.deepEqual(errors,[])
     console.log('Device UI passed: estimated ON/OFF/Unknown, queued/failed commands cannot override reports, sleep modes, controls and light/dark mobile/desktop layouts.')
-  } finally { await browser.close() }
+  } finally { await browser.close(); await server?.close() }
 })().catch(error=>{console.error(error);process.exitCode=1})

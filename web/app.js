@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.95.0?bundle'
 import { readScheduleFile, DAYS } from './schedule-import.js'
-import { deviceStatus, devicePowerMode, estimatedAcState } from './device-status.js'
+import { deviceStatus, devicePowerMode, estimatedAcState, wifiSignal } from './device-status.js'
 
 const api = createClient('https://jvdudsbtcjojbgtanbzo.supabase.co', 'sb_publishable_B4ZZZ62G7PF8sNcKGxWA0A_MKmvhTcF')
 const screen = document.getElementById('screen')
@@ -22,6 +22,7 @@ let heldDeviceIds = new Set()
 let classCheckins = []
 let classResponseMessage = ''
 let loadingError = ''
+let lastRenderedRoute = null
 let hasUnsavedEdits = false
 let scheduleImport = null
 let roomMappings = {}
@@ -58,8 +59,14 @@ const route = () => decodeURIComponent(location.hash.slice(1) || 'overview')
 const selectedId = () => route().startsWith('device/') ? route().split('/')[1] : null
 const badge = d => { const status = deviceStatus(d); const idle = devicePowerMode(d) === 'modem_sleep'; return `<span class="badge ${idle ? 'idle' : status}">${idle ? 'Idle sleep · online' : status === 'unprovisioned' ? 'Not provisioned' : status === 'sleeping' ? 'Sleeping' : status === 'online' ? 'Online' : 'Offline'}</span>` }
 const hasReading = d => ['online', 'sleeping'].includes(deviceStatus(d))
+function wifiIndicator(d) {
+  const signal = wifiSignal(d)
+  const quality = signal.toLowerCase().replaceAll(' ', '-')
+  const label = `Wi-Fi: ${signal}`
+  const rssi = deviceStatus(d) === 'online' && Number.isInteger(d.wifi_rssi) ? ` (${d.wifi_rssi} dBm)` : ''
+  return `<span class="wifi-signal" data-quality="${quality}" role="img" aria-label="${label}" title="${label}${rssi}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path class="wifi-outer" d="M3 8a15 15 0 0 1 18 0"/><path class="wifi-middle" d="M6 12a10 10 0 0 1 12 0"/><path class="wifi-inner" d="M9 16a5 5 0 0 1 6 0"/><circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/><path class="wifi-disconnected" d="M3 3l18 18"/></svg></span>`
+}
 const wakeText = d => deviceStatus(d) === 'sleeping' ? `<p class="muted">Last reported readings · expected wake: ${esc(formatDate(d.sleep_until))}</p>` : ''
-const powerText = d => deviceStatus(d) !== 'online' ? '' : `<p class="muted">${devicePowerMode(d) === 'modem_sleep' ? 'Wi-Fi modem sleep is active. New schedules and commands return the controller to active mode.' : devicePowerMode(d) === 'active' ? 'Active mode · idle sleep starts after 10 minutes without commands, schedule changes, or an active timer window.' : 'Power mode not reported. Upload the latest firmware to see idle sleep status.'}</p>`
 const seen = d => d.last_seen_at ? new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' }).format(new Date(d.last_seen_at)) : 'Never seen'
 const reading = (value, unit) => value == null ? '—' : `${Number(value).toFixed(1)}${unit}`
 const temperature = value => {
@@ -67,23 +74,65 @@ const temperature = value => {
   const fahrenheit = localStorage.getItem('temperature-unit') === 'fahrenheit'
   return `${(fahrenheit ? Number(value) * 9 / 5 + 32 : Number(value)).toFixed(1)} °${fahrenheit ? 'F' : 'C'}`
 }
+// The dial scale is a display range for the measured room temperature, not an AC setting.
+const DIAL_RANGE_C = [16, 36]
+const scaleLabel = celsius => `${Math.round(localStorage.getItem('temperature-unit') === 'fahrenheit' ? celsius * 9 / 5 + 32 : celsius)}°`
+// Icon paths from Lucide (ISC licence, see assets/icons/LICENSE).
+const icon = paths => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`
+const icons = {
+  minus: '<path d="M5 12h14"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  mode: '<path d="M21 4h-7"/><path d="M10 4H3"/><path d="M21 12h-9"/><path d="M8 12H3"/><path d="M21 20h-5"/><path d="M12 20H3"/><path d="M14 2v4"/><path d="M8 10v4"/><path d="M16 18v4"/>',
+  powerful: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  power: '<path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/>',
+}
 const displayName = profile => [profile?.first_name, profile?.last_name].filter(Boolean).join(' ')
 const isAdmin = () => accessContext?.role === 'admin'
 const captureTestLabels = { test_temp_down: 'Test temperature down', test_temp_up: 'Test temperature up', test_mode: 'Test MODE', test_powerful: 'Test POWERFUL' }
 const actionLabel = action => captureTestLabels[action] || action?.toUpperCase() || 'Unknown'
+const pendingCaptureTests = new Set()
+function renderCaptureTests(d) {
+  const online = deviceStatus(d) === 'online'
+  const ready = online && d.capture_test_version === 1 && !pendingCaptureTests.has(d.id)
+  const labels = { test_temp_down: 'Lower temperature', test_temp_up: 'Raise temperature', test_mode: 'Mode', test_powerful: 'Powerful' }
+  return `<article class="card device-control-card" aria-label="AC controls for ${esc(d.name)}"><div class="panel-top"><div><h2>AC controls · ${esc(d.name)}</h2><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="ac-setting-indicators" aria-label="AC settings"><div><span>AC target temperature</span><strong>Unknown</strong></div><div><span>AC mode</span><strong>Unknown</strong></div></div><section class="room-remote" aria-label="Captured remote controls"><div class="panel-top"><h3>Remote controls</h3><span class="remote-test-tag">Captured signals · unverified</span></div><div class="remote-buttons">${Object.entries(labels).map(([action, label]) => `<button class="secondary capture-test" type="button" data-device-id="${esc(d.id)}" data-action="${action}" aria-label="${label}" ${ready ? '' : 'disabled'}>${action.startsWith('test_temp_') ? `<img src="assets/climate-${action === 'test_temp_down' ? 'minus' : 'plus'}.svg" alt="">` : ''}${label}</button>`).join('')}</div>${d.capture_test_version !== 1 ? '<p class="remote-help">Capture-test firmware required.</p>' : !online ? '<p class="remote-help">Controller offline or sleeping.</p>' : ''}<p class="status-text" role="status" id="capture-status-${esc(d.id)}"></p></section></article>`
+}
+function attachCaptureTests() {
+  document.querySelectorAll('.capture-test').forEach(button => button.onclick = async () => {
+    const id = button.dataset.deviceId
+    const d = devices.find(device => device.id === id)
+    if (!d || deviceStatus(d) !== 'online' || d.capture_test_version !== 1) return
+    if (pendingCaptureTests.has(id)) return
+    pendingCaptureTests.add(id)
+    const originalContent = button.innerHTML
+    button.textContent = 'Sending…'
+    button.setAttribute('aria-busy', 'true')
+    button.classList.add('is-sending')
+    const buttons = [...document.querySelectorAll('.capture-test')].filter(item => item.dataset.deviceId === id)
+    buttons.forEach(item => { item.disabled = true })
+    const statusId = `capture-status-${id}`
+    try {
+      setMessage(statusId, 'Queuing captured signal…')
+      const { error } = await api.from('device_commands').insert({ device_id: id, requested_by: session.user.id, action: button.dataset.action })
+      if (error) throw error
+      setMessage(statusId, `${actionLabel(button.dataset.action)} queued. Check the AC response; no target temperature is confirmed.`)
+    } catch (error) {
+      setMessage(statusId, error.message || 'Could not queue captured signal.', true)
+    } finally {
+      pendingCaptureTests.delete(id)
+      button.innerHTML = originalContent
+      button.removeAttribute('aria-busy')
+      button.classList.remove('is-sending')
+      const current = devices.find(device => device.id === id)
+      document.querySelectorAll('.capture-test').forEach(item => { if (item.dataset.deviceId === id) item.disabled = !current || deviceStatus(current) !== 'online' || current.capture_test_version !== 1 })
+    }
+  })
+}
 const pageHead = (label, title, sub) => `<h1>${title}</h1>${sub ? `<p class="lead">${sub}</p>` : ""}`
 const banner = (title, body, warn = false) => `<div class="banner ${warn ? 'warn' : ''}"><span aria-hidden="true">${warn ? '◉' : '✳'}</span><div><strong>${title}</strong>${body}</div></div>`
 
 function table(rows) {
   return `<div class="card table-wrap" tabindex="0" role="region" aria-label="Scrollable table"><table class="device-table"><thead><tr><th>Device</th><th>ID</th><th>Connection</th><th>Temperature</th><th>Last seen</th><th></th></tr></thead><tbody>${rows.map(d => `<tr data-device="${esc(d.id)}" tabindex="0" aria-label="Open device ${esc(d.id)}"><td><strong>${esc(d.name)}</strong></td><td><span class="device-id">${esc(d.id)}</span></td><td>${badge(d)}</td><td>${hasReading(d) ? temperature(d.temperature_c) : '—'}</td><td>${esc(seen(d))}${wakeText(d)}</td><td>↗</td></tr>`).join('')}</tbody></table></div>`
-}
-
-function renderEnergyCharts() {
-  const cards = [
-    { title: 'Daily consumption', labels: ['00:00', '06:00', '12:00', '18:00', '24:00'] },
-    { title: 'Monthly consumption', labels: ['1', '7', '14', '21', '31'] },
-  ]
-  return `<section class="energy-monitoring" aria-label="Estimated energy consumption"><div class="section-heading"><h2>Estimated energy consumption</h2><small>kWh</small></div><div class="energy-chart-grid">${cards.map(card => `<article class="card energy-chart-card"><h3>${card.title} <span>(kWh)</span></h3><div class="energy-chart-empty"><svg viewBox="0 0 400 220" aria-hidden="true"><path class="energy-grid" d="M32 20H384 M32 62H384 M32 104H384 M32 146H384 M32 188H384 M32 20V188 M120 20V188 M208 20V188 M296 20V188 M384 20V188"/><text x="22" y="193" text-anchor="end">0</text>${card.labels.map((label, index) => `<text x="${32 + index * 88}" y="213" text-anchor="${index === 0 ? 'start' : index === 4 ? 'end' : 'middle'}">${label}</text>`).join('')}</svg><p class="energy-empty-message">Awaiting runtime data</p></div><p class="energy-chart-note">2.66 kW × operating hours · estimated</p></article>`).join('')}</div></section>`
 }
 
 function renderOverview() {
@@ -94,7 +143,7 @@ function renderOverview() {
   const workspace = isAdmin()
     ? `<div class="overview-actions"><a class="overview-action" href="#monitoring"><span>◉</span><strong>Live monitoring</strong><b>Open monitoring →</b></a><a class="overview-action" href="#devices"><span>▤</span><strong>Device registry</strong><b>Manage devices →</b></a></div>`
     : `<div class="overview-actions"><a class="overview-action" href="#alerts"><span>♧</span><strong>Notifications</strong><b>View notifications →</b></a></div>`
-  const assignedRooms = devices.map(d => `<article class="card assigned-room"><div class="panel-top"><div><strong>${esc(d.name)}</strong><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="reading-grid"><div class="reading"><label>Temperature</label><b>${hasReading(d) ? temperature(d.temperature_c) : '—'}</b></div><div class="reading"><label>Humidity</label><b>${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</b></div><div class="reading"><label>AC state (estimated)</label><b>${estimatedAcState(d)}</b></div></div>${wakeText(d)}<p class="muted">Last active: ${esc(seen(d))}</p></article>`).join('')
+  const assignedRooms = devices.map(d => `<div class="device-room-pair"><article class="card assigned-room"><div class="panel-top"><div><span class="controller-name"><strong>${esc(d.name)}</strong>${wifiIndicator(d)}</span><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="reading-grid"><div class="reading"><label>Room temperature</label><b>${hasReading(d) ? temperature(d.temperature_c) : '—'}</b></div><div class="reading"><label>Humidity</label><b>${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</b></div><div class="reading"><label>AC state (estimated)</label><b>${estimatedAcState(d)}</b></div></div>${wakeText(d)}<p class="muted">Last active: ${esc(seen(d))}</p></article>${renderCaptureTests(d)}</div>`).join('')
   const checkinCards = renderClassCheckins()
   return `<div class="page overview-page"><div class="overview-brand"><span class="logo-box"><img class="brand-symbol" src="assets/inuvair-logo-light-v2.svg" alt=""></span><span class="brand-name">INUVAIR</span><span class="brand-caption">ROOM CLIMATE</span></div>
     ${classResponseMessage ? banner('Schedule response saved', esc(classResponseMessage)) : ''}
@@ -102,7 +151,6 @@ function renderOverview() {
     <section class="card room-card overview-links"><div class="card-heading"><div><h1>${isAdmin() ? 'Choose a workspace' : 'Your assigned devices'}</h1></div></div>${workspace}</section>
     ${!isAdmin() ? `<section class="assigned-room-list"><div class="section-heading"><h2>Assigned device status</h2></div>${assignedRooms || '<div class="card empty">No active schedule slot.</div>'}</section>${checkinCards}` : ''}
     ${heldDeviceIds.size ? `<section class="card alerts-card schedule-held"><strong>Schedule paused</strong><p>Paused for: ${[...heldDeviceIds].map(deviceName).map(esc).join(', ')}</p><div class="confirmation-actions"><button class="secondary resume-schedule" type="button">Resume schedules</button></div></section>` : ''}
-    ${renderEnergyCharts()}
     <section class="card alerts-card"><div class="card-heading"><div><h2>Notifications</h2></div><span class="alert-count">${attention}</span></div>${attention ? `<p class="alert-row"><span class="alert-mark">!</span><span><strong>${attention} assigned controller${attention === 1 ? '' : 's'} offline or awaiting setup</strong></span><a href="#alerts" aria-label="Open notifications">→</a></p>` : '<p class="alert-clear">No notifications.</p>'}</section></div>`
 }
 
@@ -131,10 +179,9 @@ function deviceName(id) {
 function renderMonitoring() {
   const online = devices.filter(d => deviceStatus(d) === 'online').length
   const readings = devices.filter(d => deviceStatus(d) === 'online' && (d.temperature_c != null || d.humidity_pct != null)).length
-  const cards = devices.map(d => `<article class="card monitor-card"><div class="panel-top"><div><strong>${esc(d.name)}</strong><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="monitor-readings"><div><label>Temperature</label><b>${hasReading(d) ? temperature(d.temperature_c) : '—'}</b></div><div><label>Humidity</label><b>${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</b></div></div>${wakeText(d)}<p class="muted">Last active: ${esc(seen(d))}</p></article>`).join('')
+  const cards = devices.map(d => `<article class="card monitor-card"><div class="panel-top"><div><span class="controller-name"><strong>${esc(d.name)}</strong>${wifiIndicator(d)}</span><small class="monitor-id">Controller ${esc(d.id)}</small></div>${badge(d)}</div><div class="monitor-readings"><div><label>Temperature</label><b>${hasReading(d) ? temperature(d.temperature_c) : '—'}</b></div><div><label>Humidity</label><b>${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</b></div></div>${wakeText(d)}<p class="muted">Last active: ${esc(seen(d))}</p></article>`).join('')
   return `<div class="page">${pageHead('Live telemetry', 'Monitoring', '')}
     <div class="stats"><div class="card stat"><div class="stat-label">Online</div><div class="stat-value">${online}<span class="muted"> / ${devices.length}</span></div></div><div class="card stat"><div class="stat-label">Reporting readings</div><div class="stat-value">${readings}</div></div><div class="card stat"><div class="stat-label">Refresh</div><div class="stat-value">8<span class="muted"> sec</span></div></div></div>
-    ${renderEnergyCharts()}
     <div class="section-heading"><h2>Controller readings</h2></div><div class="monitor-grid">${cards || '<div class="card empty">No controllers are assigned to this account.</div>'}</div></div>`
 }
 
@@ -145,7 +192,7 @@ function renderScheduling() {
     const bookingRows = bookings.map(booking => `<tr><td>${esc(displayName(profileNames.find(profile => profile.user_id === booking.user_id)) || booking.user_email)}</td><td>${esc(DAYS[booking.weekday - 1])}</td><td>${esc(booking.start_time.slice(0, 5))}–${esc(booking.end_time.slice(0, 5))}</td><td>${esc(booking.notes)}</td><td><button class="secondary remove-booking" data-booking-id="${esc(booking.id)}" type="button">Remove</button></td></tr>`).join('')
     const timers = allSchedules.filter(schedule => schedule.device_id === device.id)
     const timerRows = timers.map(schedule => `<tr><td>${esc(schedule.on_time.slice(0, 5))}</td><td>${esc(schedule.off_time.slice(0, 5))}</td><td><span class="badge ${schedule.enabled ? 'online' : 'offline'}">${schedule.enabled ? 'Enabled' : 'Paused'}</span></td></tr>`).join('')
-    return `<details class="card panel room-schedule-card" data-device-id="${esc(device.id)}" ${openRoomSchedules.has(device.id) ? 'open' : ''}><summary class="room-schedule-header"><span><strong>Room ${esc(room)}</strong><small class="monitor-id">${esc(device.id)}</small></span><span class="room-schedule-chevron" aria-hidden="true">⌄</span></summary><div class="room-schedule-content"><div class="panel-top"><h3>Weekly bookings</h3><a class="secondary" href="#device/${encodeURIComponent(device.id)}">Manage timers →</a></div><div class="table-wrap" tabindex="0" role="region" aria-label="Room ${esc(room)} weekly bookings"><table class="device-table"><thead><tr><th>User</th><th>Day</th><th>Time</th><th>Class / Notes</th><th></th></tr></thead><tbody>${bookingRows || '<tr><td colspan="5" class="empty">No weekly bookings.</td></tr>'}</tbody></table></div><h3>Daily AC timers</h3><div class="table-wrap" tabindex="0" role="region" aria-label="Room ${esc(room)} daily timers"><table class="device-table"><thead><tr><th>Turns on</th><th>Turns off</th><th>Status</th></tr></thead><tbody>${timerRows || '<tr><td colspan="3" class="empty">No timers set.</td></tr>'}</tbody></table></div></div></details>`
+    return `<details class="card panel room-schedule-card" data-device-id="${esc(device.id)}" ${openRoomSchedules.has(device.id) ? 'open' : ''}><summary class="room-schedule-header"><span><strong>Classroom ${esc(room)}</strong><small class="monitor-id">${esc(device.id)}</small></span><span class="room-schedule-chevron" aria-hidden="true">⌄</span></summary><div class="room-schedule-content"><div class="panel-top"><h3>Weekly schedules</h3><a class="secondary" href="#device/${encodeURIComponent(device.id)}">Manage timers →</a></div><div class="table-wrap" tabindex="0" role="region" aria-label="Classroom ${esc(room)} weekly schedules"><table class="device-table"><thead><tr><th>User</th><th>Day</th><th>Time</th><th>Class / Notes</th><th></th></tr></thead><tbody>${bookingRows || '<tr><td colspan="5" class="empty">No weekly schedules.</td></tr>'}</tbody></table></div><h3>Daily AC timers</h3><div class="table-wrap" tabindex="0" role="region" aria-label="Classroom ${esc(room)} daily timers"><table class="device-table"><thead><tr><th>Turns on</th><th>Turns off</th><th>Status</th></tr></thead><tbody>${timerRows || '<tr><td colspan="3" class="empty">No timers set.</td></tr>'}</tbody></table></div></div></details>`
   }).join('')
   return `<div class="page">${pageHead('Room routines', 'Scheduling', '')}${renderScheduleImport()}<div class="room-schedule-grid">${cards || '<div class="card empty">No controllers are assigned to this account.</div>'}</div></div>`
 }
@@ -159,7 +206,7 @@ function roomDeviceId(room) {
 function renderScheduleImport() {
   const rooms = [...new Set(scheduleImport?.rows.map(row => row.room) || [])]
   const preview = scheduleImport ? `<div class="section-heading"><h3>Verified bookings</h3><small>${scheduleImport.rows.length} rows · Asia/Manila</small></div>${scheduleImport.errors.length ? `<div class="import-errors" role="alert"><strong>Fix these rows in Excel and upload again</strong><ul>${scheduleImport.errors.map(error => `<li>${esc(error)}</li>`).join('')}</ul></div>` : rooms.some(room => !roomMappings[room]) ? `<p class="error-text">No matching ESP32 for room(s): ${rooms.filter(room => !roomMappings[room]).map(esc).join(', ')}.</p>` : ''}<div class="table-wrap" tabindex="0" role="region" aria-label="Excel booking preview"><table class="device-table"><thead><tr><th>Excel row</th><th>User</th><th>Room</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${scheduleImport.rows.map(row => `<tr><td>${row.row}</td><td>${esc(row.email)}</td><td>${esc(row.room)}</td><td>${esc(DAYS[row.day - 1] || 'Invalid')}</td><td>${esc(row.start)}–${esc(row.end)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table></div><div class="button-row"><button class="primary" id="save-import" type="button" ${importBusy || scheduleImport.errors.length || rooms.some(room => !roomMappings[room]) || weeklyLoadError ? 'disabled' : ''}>${importBusy ? 'Saving…' : 'Review changes'}</button><button class="secondary" id="clear-import" type="button" ${importBusy ? 'disabled' : ''}>Clear preview</button></div>` : ''
-  return `<section class="card panel schedule-import"><div class="panel-top"><div><h2>Weekly room bookings</h2></div><div class="button-row"><a class="secondary template-download" href="templates/inuvair-weekly-room-schedule-template.xlsx" download>Download Excel template</a><button class="danger" id="remove-schedule" type="button" ${importBusy || weeklyLoadError || !weeklyBookings.length ? 'disabled' : ''}>Remove schedule</button></div></div><div class="field"><label for="schedule-file">Upload schedule</label><input id="schedule-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ${importBusy ? 'disabled' : ''}></div><p class="status-text" id="import-status" role="status">${esc(importMessage)}</p>${weeklyLoadError ? `<p class="error-text">${esc(weeklyLoadError)}</p>` : ''}${preview}</section>`
+  return `<section class="card panel schedule-import"><div class="panel-top"><div><h2>Weekly schedules</h2></div><div class="button-row"><a class="secondary template-download" href="templates/inuvair-weekly-room-schedule-template.xlsx" download>Download Excel template</a><button class="danger" id="remove-schedule" type="button" ${importBusy || weeklyLoadError || !weeklyBookings.length ? 'disabled' : ''}>Remove schedule</button></div></div><div class="field"><label for="schedule-file">Upload schedule</label><input id="schedule-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ${importBusy ? 'disabled' : ''}></div><p class="status-text" id="import-status" role="status">${esc(importMessage)}</p>${weeklyLoadError ? `<p class="error-text">${esc(weeklyLoadError)}</p>` : ''}${preview}</section>`
 }
 
 function confirmScheduleImport(rows, mappings) {
@@ -167,7 +214,7 @@ function confirmScheduleImport(rows, mappings) {
     const dialog = document.createElement('dialog')
     dialog.className = 'import-confirmation'
     dialog.setAttribute('aria-labelledby', 'import-confirm-title')
-    dialog.innerHTML = `<h2 id="import-confirm-title">Confirm weekly room access</h2><p>Save these ${rows.length} verified bookings? These weekly slots grant room access and automatically turn the AC on at the start and off at the end, in Philippine time, after the ESP32 syncs with the updated firmware.</p><p>Existing bookings stay in place. Exact duplicates are skipped. AC ON/OFF timers are unchanged. Only the Schedule sheet’s six template columns are used.</p><div class="table-wrap" tabindex="0" role="region" aria-label="Bookings to implement"><table class="device-table"><thead><tr><th>User</th><th>Room / Controller</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${rows.map(row => `<tr><td>${esc(row.email)}</td><td>${esc(row.room)} · ${esc(deviceName(mappings[row.room]))}</td><td>${esc(DAYS[row.day - 1])}</td><td>${esc(row.start)}–${esc(row.end)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table></div><p class="muted">The server checks email confirmation, room mappings and conflicts again before saving. Any failed check cancels the entire import.</p><div class="button-row"><button class="secondary" id="cancel-import" type="button" autofocus>Go back</button><button class="primary" id="confirm-import" type="button">Confirm and save</button></div>`
+    dialog.innerHTML = `<h2 id="import-confirm-title">Confirm weekly room access</h2><p>Save ${rows.length} bookings? Slots grant room access and schedule AC ON/OFF in Philippine time.</p><p>Existing bookings are kept; duplicates are skipped.</p><div class="table-wrap" tabindex="0" role="region" aria-label="Bookings to implement"><table class="device-table"><thead><tr><th>User</th><th>Room / Controller</th><th>Day</th><th>Time</th><th>Class / Notes</th></tr></thead><tbody>${rows.map(row => `<tr><td>${esc(row.email)}</td><td>${esc(row.room)} · ${esc(deviceName(mappings[row.room]))}</td><td>${esc(DAYS[row.day - 1])}</td><td>${esc(row.start)}–${esc(row.end)}</td><td>${esc(row.notes)}</td></tr>`).join('')}</tbody></table></div><div class="button-row"><button class="secondary" id="cancel-import" type="button" autofocus>Go back</button><button class="primary" id="confirm-import" type="button">Confirm and save</button></div>`
     const finish = confirmed => { dialog.close(); dialog.remove(); document.getElementById('save-import')?.focus(); resolve(confirmed) }
     dialog.querySelector('#cancel-import').onclick = () => finish(false)
     dialog.querySelector('#confirm-import').onclick = () => finish(true)
@@ -331,7 +378,7 @@ function attachProfile() {
       accountEmail.textContent = displayName(data)
       document.getElementById('profile-username').value = data.username
       hasUnsavedEdits = false
-      setMessage('profile-status', 'Profile saved. Your generated username or email can be used to sign in.')
+      setMessage('profile-status', 'Profile saved.')
     } catch (error) {
       setMessage('profile-status', error.code === '23505' ? 'That username is already taken. Choose another.' : 'Could not save your username. Please try again.', true)
     } finally { button.disabled = false }
@@ -439,16 +486,38 @@ function todayBookings(id) {
   return rows ? `<div class="table-wrap" tabindex="0" role="region" aria-label="Today’s automatic AC timers"><table class="device-table"><thead><tr><th>ON</th><th>OFF</th><th>Source</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">No remaining automatic timers today.</p>'
 }
 
+function renderDial(d) {
+  const shown = hasReading(d) && d.temperature_c != null
+  const [min, max] = DIAL_RANGE_C
+  const fill = shown ? Math.min(1, Math.max(0, (Number(d.temperature_c) - min) / (max - min))) : 0
+  const angle = (135 + fill * 270) * Math.PI / 180
+  const [value, unit] = temperature(d.temperature_c).split(' ')
+  const arc = 'M49.3 190.7A100 100 0 1 1 190.7 190.7'
+  return `<div class="climate-dial"><svg viewBox="0 0 240 240" aria-hidden="true"><defs><linearGradient id="dial-gradient" gradientUnits="userSpaceOnUse" x1="30" y1="0" x2="210" y2="0"><stop offset="0" class="dial-cool"/><stop offset=".4" class="dial-mid"/><stop offset=".7" class="dial-hot"/><stop offset="1" class="dial-warm"/></linearGradient></defs><path class="dial-track" d="${arc}" pathLength="270"/>${shown ? `<path class="dial-fill" d="${arc}" pathLength="270" stroke-dasharray="${(fill * 270).toFixed(1)} 400"/><circle class="dial-knob" cx="${(120 + 100 * Math.cos(angle)).toFixed(1)}" cy="${(120 + 100 * Math.sin(angle)).toFixed(1)}" r="9"/>` : ''}</svg>
+    <div class="dial-readout"><span class="dial-label">Room temperature</span><b class="dial-value">${shown ? `<span class="dial-number">${value}</span> <span class="dial-unit">${unit}</span>` : '—'}</b></div><span class="dial-scale dial-min">${scaleLabel(min)}</span><span class="dial-scale dial-max">${scaleLabel(max)}</span></div>`
+}
+
+function renderClimateCard(d) {
+  const status = deviceStatus(d)
+  const online = status === 'online'
+  const ready = online && d.capture_test_version === 1 && !pendingCaptureTests.has(d.id)
+  const remote = (action, label, content, kind) => `<button class="${kind} capture-test" type="button" data-device-id="${esc(d.id)}" data-action="${action}" aria-label="${label}" ${ready ? '' : 'disabled'}>${content}</button>`
+  const commandExpired = latestCommand?.status === 'queued' && latestCommand.expires_at && Date.parse(latestCommand.expires_at) <= Date.now()
+  const commandText = latestCommand ? `Last request: ${actionLabel(latestCommand.action)} · ${latestCommand.status === 'sent_ir' ? 'IR sent by ESP32' : commandExpired ? 'Expired before delivery' : latestCommand.status === 'queued' ? 'Waiting for ESP32' : latestCommand.error_message || 'Send failed'}` : 'No website commands recorded.'
+  const power = isAdmin() ? `<div class="climate-section climate-power"><div class="climate-label"><h3>Power</h3></div><div class="climate-options"><button class="primary manual" type="button" data-action="on" ${online ? '' : 'disabled'}>${icon(icons.power)}Power on</button><button class="secondary manual" type="button" data-action="off" ${online ? '' : 'disabled'}>${icon(icons.power)}Power off</button></div>${status === 'sleeping' ? '<p class="muted">Firmware update required for automatic schedule changes.</p>' : ''}<p class="status-text" id="command-status">${esc(commandText)}</p></div>` : ''
+  return `<section class="card climate-card" id="climate-card" aria-labelledby="climate-title"><div class="climate-head"><div><h2 id="climate-title">Climate control</h2><small class="monitor-id">Controller ${esc(d.id)}</small></div><div class="climate-status">${wifiIndicator(d)}${badge(d)}</div></div>
+    <div class="climate-body"><div class="climate-reading">${renderDial(d)}<div class="reading-grid"><div class="reading"><label>Humidity</label><b>${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</b></div><div class="reading"><label>AC state (estimated)</label><b>${estimatedAcState(d)}</b></div></div><p class="device-activity">Last active: ${esc(seen(d))}</p>${wakeText(d)}</div>
+    <div class="climate-controls"><div class="climate-section"><div class="climate-label"><h3>Temperature</h3></div><div class="climate-stepper">${remote('test_temp_down', 'Lower temperature', icon(icons.minus), 'stepper-button')}<div class="stepper-readout"><span>AC target</span><strong>Unknown</strong></div>${remote('test_temp_up', 'Raise temperature', icon(icons.plus), 'stepper-button')}</div></div>
+      <div class="climate-section"><div class="climate-label"><h3>Mode</h3><span>AC mode: <strong>Unknown</strong></span></div><div class="climate-options">${remote('test_mode', 'Mode', `${icon(icons.mode)}Mode`, 'secondary')}${remote('test_powerful', 'Powerful', `${icon(icons.powerful)}Powerful`, 'secondary')}</div>
+      <p class="remote-help">Captured signals · unverified${d.capture_test_version !== 1 ? '. Capture-test firmware required.' : !online ? '. Controller offline or sleeping.' : ''}</p><p class="status-text" role="status" id="capture-status-${esc(d.id)}"></p></div>${power}</div></div></section>`
+}
+
 function renderDetail(id) {
   const d = devices.find(item => item.id === id)
   if (!d) return `<div class="page">${pageHead('Device', 'Device unavailable.', 'This device is not assigned to your verified account.')}<a class="back" href="#devices">← Back to devices</a></div>`
-  const online = deviceStatus(d) === 'online'
-  const commandExpired = latestCommand?.status === 'queued' && latestCommand.expires_at && Date.parse(latestCommand.expires_at) <= Date.now()
-  const commandText = latestCommand ? `Last request: ${actionLabel(latestCommand.action)} · ${latestCommand.status === 'sent_ir' ? 'IR sent by ESP32' : commandExpired ? 'Expired before delivery' : latestCommand.status === 'queued' ? 'Waiting for ESP32' : latestCommand.error_message || 'Send failed'}` : 'No website commands recorded.'
   return `<div class="page"><a class="back" href="#devices">← All devices</a>${pageHead('Device ' + esc(id), esc(d.name), '')}
-    <div class="detail-grid"><section class="card panel" id="live-device-status"><div class="panel-top"><h2>Live device status</h2>${badge(d)}</div><div class="reading-grid"><div class="reading"><label>Temperature</label><b>${hasReading(d) ? temperature(d.temperature_c) : '—'}</b></div><div class="reading"><label>Humidity</label><b>${hasReading(d) ? reading(d.humidity_pct, ' %') : '—'}</b></div><div class="reading"><label>AC state (estimated)</label><b>${estimatedAcState(d)}</b></div></div><p class="muted">Last active: ${esc(seen(d))}. ${d.last_ir_at ? `Last reported IR: ${esc(d.last_ir_action ? actionLabel(d.last_ir_action) : 'Captured test (state unverified)')} at ${esc(new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(d.last_ir_at)))}` : 'No IR transmission report yet.'}</p>
-      ${wakeText(d)}${powerText(d)}<div class="rule"></div><div class="panel-top"><h2>Manual control</h2></div><div class="button-row"><button class="primary manual" data-action="on" ${online ? '' : 'disabled'}>Turn on</button><button class="secondary manual" data-action="off" ${online ? '' : 'disabled'}>Turn off</button></div>${deviceStatus(d) === 'sleeping' ? '<p class="muted">This controller is still using sleep mode. Upload the updated USB firmware to receive schedule changes automatically.</p>' : ''}<p class="status-text" id="command-status">${esc(commandText)}</p></section>
-      <section class="card panel"><div class="panel-top"><h2>Daily AC timers</h2><span class="tag">Asia/Manila</span></div><div id="today-bookings">${todayBookings(id)}</div><div class="rule"></div><h3>Manual timers</h3><div id="schedule-rows">${scheduleRows() || '<p class="muted">No manual timers set.</p>'}</div><div class="rule"></div><div class="schedule-row"><div class="field"><label for="new-on">New ON time</label><input type="time" id="new-on" value="07:00"></div><div class="field"><label for="new-off">New OFF time</label><input type="time" id="new-off" value="09:00"></div><button class="primary" id="add-schedule" type="button" ${d.provisioned ? '' : 'disabled'}>Add window</button></div><p class="status-text" id="schedule-status"></p></section></div></div>`
+    <div class="detail-grid">${renderClimateCard(d)}
+      <section class="card panel device-timers-card"><div class="panel-top"><h2>Daily AC timers</h2><span class="tag">Asia/Manila</span></div><div id="today-bookings">${todayBookings(id)}</div><div class="rule"></div><h3>Manual timers</h3><div id="schedule-rows">${scheduleRows() || '<p class="muted">No manual timers set.</p>'}</div><div class="rule"></div><div class="schedule-row"><div class="field"><label for="new-on">New ON time</label><input type="time" id="new-on" value="07:00"></div><div class="field"><label for="new-off">New OFF time</label><input type="time" id="new-off" value="09:00"></div><button class="primary" id="add-schedule" type="button" ${d.provisioned ? '' : 'disabled'}>Add window</button></div><p class="status-text" id="schedule-status"></p></section></div></div>`
 }
 
 function attachTableLinks() { document.querySelectorAll('tr[data-device]').forEach(row => { const open = () => location.hash = `device/${row.dataset.device}`; row.onclick = open; row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } } }) }
@@ -462,7 +531,7 @@ async function saveSchedule(id, on, off, deviceId) {
   const { error } = id ? await api.from('device_schedules').update(values).eq('id', id) : await api.from('device_schedules').insert({ ...values, device_id: deviceId, owner_id: session.user.id })
   if (error) return setMessage('schedule-status', error.message, true)
   await refresh(true)
-  setMessage('schedule-status', 'Schedule saved. The ESP32 will sync it on its next poll.')
+  setMessage('schedule-status', 'Schedule saved.')
 }
 
 function attachDetail(id) {
@@ -553,9 +622,18 @@ function render() {
   if (role === 'authorized' && !['overview', 'alerts', 'settings', 'devices'].includes(current)) { location.hash = 'overview'; return }
   if (role !== 'admin' && role !== 'authorized') { screen.innerHTML = `<div class="page">${banner('Could not verify account access', 'Sign out and sign in again. If this continues, contact the administrator.', true)}</div>`; return }
   const pages = { overview: renderOverview, devices: renderDevices, monitoring: renderMonitoring, scheduling: renderScheduling, history: renderHistory, alerts: renderAlerts, 'user-access': renderUserAccess, settings: renderSettings }
+  const preserveScroll = lastRenderedRoute === current
+  const screenScrollTop = screen.scrollTop
+  const pageScrollY = window.scrollY
   screen.innerHTML = selectedId() ? renderDetail(selectedId()) : (pages[current] || renderOverview)()
+  lastRenderedRoute = current
+  if (preserveScroll) {
+    screen.scrollTop = screenScrollTop
+    window.scrollTo(window.scrollX, pageScrollY)
+  }
   document.getElementById('page-loading')?.setAttribute('hidden', '')
   hasUnsavedEdits = false
+  attachCaptureTests()
   attachTableLinks()
   if (selectedId() && devices.some(d => d.id === selectedId())) attachDetail(selectedId())
   if (current === 'settings') { attachAccountDeletion(); attachProfile() }
@@ -671,10 +749,13 @@ async function refresh(force = false) {
   else if (id) {
     const template = document.createElement('template')
     template.innerHTML = renderDetail(id)
-    const updated = template.content.querySelector('#live-device-status')
-    const panel = document.getElementById('live-device-status')
+    const updated = template.content.querySelector('#climate-card')
+    const panel = document.getElementById('climate-card')
     if (!panel || !updated) render()
-    else { panel.replaceWith(updated); attachDetail(id) }
+    else {
+      panel.replaceWith(updated)
+      attachDetail(id); attachCaptureTests()
+    }
   }
   } catch (error) {
     loadingError = error?.message || 'The connection failed. Please try again.'

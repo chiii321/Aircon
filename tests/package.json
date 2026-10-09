@@ -1,0 +1,15 @@
+{
+  "name": "inuvair-tests",
+  "private": true,
+  "description": "Website checks for INUVAIR. Synthetic accounts and device reports only; no live commands.",
+  "scripts": {
+    "browsers": "playwright install chromium webkit",
+    "test": "npm run test:unit && npm run test:web",
+    "test:unit": "node device-status.mjs && node wifi-signal.mjs",
+    "test:web": "node captured-tests-web.cjs && node sleep-web.cjs && node live-device-refresh.cjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.64.0"
+  }
+}
