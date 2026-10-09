@@ -1,5 +1,13 @@
 # Live controller setup
 
+> 2026-10-01 idle-status reporting: Updated sketches report their configured active/modem_sleep mode in each poll. The website shows **Idle sleep · online** only after a fresh device report, and **Power mode not reported** for older firmware. Manual controls and readings remain available during connected idle sleep. Upload the matching updated sketch once to enable reporting. Device reports confirm configured mode, not measured power consumption.
+
+> 2026-09-30 idle-mode clarification: Updated connected firmware enters Wi-Fi modem sleep after ten minutes unused, remains reachable, and becomes active for new schedules/commands or a cached timer boundary. It stays active during unpaused timer windows. Five-second polling continues while idle; no website reset is needed. Upload the updated matching sketch once. Actual sleep current and physical AC response remain unverified.
+
+> 2026-09-30 clarification: Current USB firmware now defaults to staying connected, with five-second schedule polling and Wi-Fi modem power saving. Deep sleep is optional (`INUVAIR_DEEP_SLEEP=1`), because an already sleeping device cannot receive a newly saved schedule. Upload the matching updated sketch once to replace the six-hour sleep behavior. Hardware operation remains subject to observation.
+
+> 2026-09-30: Optional timer deep sleep is prepared in the device sketches and both firmware sources. Website/cloud support reported sleep and expected wake time. Upload and USB hardware testing are still required. Solar operation is pending the boost converter, four-cell parallel holder and battery protector. See [INUVAIR power and sleep plan](inuvair-power-plan.md) for wake timing, manual-control limits and continuous diagnostic mode. The five-second continuous-polling description below applies to the current USB firmware.
+
 Website: https://inuvair.vercel.app/
 
 The Vercel production project serves the `web/` directory, as set in `vercel.json`.
@@ -36,3 +44,4 @@ Each new board needs its own firmware ID (`02` through `11`) and unique random d
 ## Current verification boundary
 
 The database, function, website, and access rules are deployed. No ESP32 heartbeat, DHT22 telemetry, physical AUX ON/OFF response, or local schedule boundary has yet been observed from hardware in this session.
+

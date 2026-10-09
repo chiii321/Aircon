@@ -1,4 +1,4 @@
-/*orange
+/*
   Stage 1 hardware test for ESP32-WROOM-32.
   PANASONIC_AC raw transmit-only control. Physical response unverified.
   Current transmitter: harvested IR LED from the previous 3-pin module.

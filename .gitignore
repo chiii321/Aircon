@@ -44,3 +44,8 @@ supabase/*.local
 # Local logs and helper scripts that may print or load secrets
 *.log
 setup-supabase-env.ps1
+
+# Test tooling and generated local output
+node_modules/
+outputs/
+.wrangler/
