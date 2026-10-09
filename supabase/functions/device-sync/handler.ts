@@ -71,6 +71,8 @@ export async function handleDeviceSync(request: Request) {
     if (captureTestVersion !== null && captureTestVersion !== 1) return reply({ error: 'Invalid capture test version' }, 400)
     const powerMode = body.power_mode ?? null
     if (powerMode !== null && powerMode !== 'active' && powerMode !== 'modem_sleep') return reply({ error: 'Invalid power mode' }, 400)
+    const wifiRssi = body.wifi_rssi ?? null
+    if (wifiRssi !== null && (typeof wifiRssi !== 'number' || !Number.isInteger(wifiRssi) || wifiRssi < -127 || wifiRssi >= 0)) return reply({ error: 'Invalid Wi-Fi RSSI' }, 400)
     const temperature = body.temperature_c
     const humidity = body.humidity_pct
     const readingsValid = (temperature === null || (typeof temperature === 'number' && temperature >= -40 && temperature <= 80))
@@ -80,6 +82,7 @@ export async function handleDeviceSync(request: Request) {
       last_seen_at: new Date().toISOString(),
       sleep_until: null,
       power_mode: powerMode,
+      wifi_rssi: wifiRssi,
       temperature_c: temperature,
       humidity_pct: humidity,
       capture_test_version: captureTestVersion,

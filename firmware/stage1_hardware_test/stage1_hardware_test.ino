@@ -293,6 +293,9 @@ void pollCloud() {
   JsonDocument request;
   request["type"] = "poll";
   request["power_mode"] = idlePowerSaving ? "modem_sleep" : "active";
+  const int32_t wifiRssi = WiFi.RSSI();
+  if (WiFi.status() == WL_CONNECTED && wifiRssi >= -127 && wifiRssi < 0) request["wifi_rssi"] = wifiRssi;
+  else request["wifi_rssi"] = nullptr;
   if (isnan(lastTemperatureC)) request["temperature_c"] = nullptr;
   else request["temperature_c"] = lastTemperatureC;
   if (isnan(lastHumidityPct)) request["humidity_pct"] = nullptr;
